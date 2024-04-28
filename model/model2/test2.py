@@ -37,6 +37,12 @@ class landmark_and_result():
         def update_result(result: GestureRecognizerResults, output_image: mp.Image, timestamp_ms: int):
             self.result = result
 
+            # experimental, getting features out of the landmarks
+            handedness = result.handedness
+            if(len(handedness) > 0):
+                category = handedness[0][0]
+                print(category.category_name)
+
         options = GestureRecognizerOptions(
             base_options = BaseOptions(model_asset_path=PATH),
             running_mode = VisionRunningMode.LIVE_STREAM,
