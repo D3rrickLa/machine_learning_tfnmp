@@ -11,7 +11,7 @@ with a gesture style dataset we can record the hand movement, basing the positio
 
 1. use mediapipe to capture the hand gesture position
 2. translate that information into something useful
-3. take that info and put it into a dataset folder - thinking EXCEL file or something
+3. take that info and put it into a dataset folder - thinking EXCEL file or CSV
 4. use tensorflow to build the model
 
 ### how it could work - video
