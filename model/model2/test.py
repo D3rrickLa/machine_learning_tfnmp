@@ -1,50 +1,35 @@
 import cv2 
 import mediapipe as mp 
-import numpy as np 
-from mediapipe import solutions 
-from mediapipe.tasks import python 
-from mediapipe.tasks.python import vision 
-from mediapipe.framework.formats import landmark_pb2 
-import time 
+import numpy as np
+from mediapipe.framework.formats import landmark_pb2
+import time
 
-
-MODEL_PATH = 'model/model2/hand_landmarker.task'
-
-BaseOptions = mp.tasks.BaseOptions
-HandLandmarker = mp.tasks.vision.HandLandmarker
-HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-HandLandmarkerResult = mp.tasks.vision.HandLandmarkerResult
-VisionRunningMode = mp.tasks.vision.RunningMode
-
-
+MODEL_PATH = "model/model2/hand_landmarker.task"
 MARGIN = 10  # pixels
 FONT_SIZE = 1
 FONT_THICKNESS = 1
 HANDEDNESS_TEXT_COLOR = (212, 130, 173)
 
-
-class LandMarker():
+class LandMark():
     def __init__(self):
-        self.result = HandLandmarkerResult
-        self.landmarker = HandLandmarker
-        self.createLandmarker()
-    
-    def createLandmarker(self):
-        
-        def update_result(result: HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
+        self.result = mp.tasks.vision.HandLandmarkerResult
+        self.landmarker = mp.tasks.vision.HandLandmarker
+        self.base_options = mp.tasks.BaseOptions
+        self.landmarker_options = mp.tasks.vision.HandLandmarkerOptions
+        self.create_landmarker()
+
+    def create_landmarker(self):
+        def update_result(result: mp.tasks.vision.HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
             self.result = result
-
-
-
-        options = HandLandmarkerOptions(
-            base_options = BaseOptions(model_asset_path=MODEL_PATH),
-            running_mode = VisionRunningMode.LIVE_STREAM,
-            num_hands = 1, # 2 hands is not working
+        
+        options = self.landmarker_options(
+            base_options = self.base_options(model_asset_path=MODEL_PATH),
+            running_mode = mp.tasks.vision.RunningMode.LIVE_STREAM,
+            num_hands = 2, # 2 hands is not working
             min_hand_detection_confidence = 0.7,
             min_hand_presence_confidence = 0.7,
             min_tracking_confidence = 0.7,
             result_callback = update_result
-
         )
 
         self.landmarker = self.landmarker.create_from_options(options)
@@ -52,9 +37,6 @@ class LandMarker():
     def detect_async(self, frame):
         mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = frame)
         self.landmarker.detect_async(image = mp_image, timestamp_ms = int(time.time() * 1000))
-    
-    def close(self):
-        self.landmarker.close()
 
 def draw_landmarks_on_image(rgb_image, detection_result: mp.tasks.vision.HandLandmarker):
     try:
@@ -85,7 +67,7 @@ def draw_landmarks_on_image(rgb_image, detection_result: mp.tasks.vision.HandLan
         return rgb_image
     
 capture = cv2.VideoCapture(0)
-hand_landmark = LandMarker()
+hand_landmark = LandMark()
 
 while(True):
     ret, frame = capture.read()
