@@ -166,6 +166,6 @@ cython_debug/
 
 # dataset
 data
-.pkl
+*.pkl
 .csv
-.gitignore
+
