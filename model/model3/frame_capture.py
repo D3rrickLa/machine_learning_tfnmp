@@ -3,6 +3,14 @@ import os
 
 # Function to extract frames from a video
 def extract_frames(video_folder, output_folder):
+    if not os.path.exists(video_folder):
+        print("folder doesn't exist")
+        return 0
+    
+    if not os.path.exists(output_folder):
+        print("output folder doesn't exist")
+        return 0
+
     for filename in os.listdir(video_folder):
         video_path = os.path.join(video_folder, filename)
         if os.path.isfile(video_path):
@@ -23,7 +31,8 @@ def extract_frames(video_folder, output_folder):
             cap.release()
 
 # Example usage
-video_folder = "data/dataset1/swipe_right"
-output_folder = "data/dataset1_extracted/swipe_right"
+GESTURE = "swipe_left"
+video_folder = f"data/dataset1/{GESTURE}"
+output_folder = f"data/dataset1_extracted/{GESTURE}"
 
 extract_frames(video_folder, output_folder)

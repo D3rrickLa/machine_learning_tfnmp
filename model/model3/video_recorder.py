@@ -10,8 +10,8 @@ camera = cv2.VideoCapture(0)  # 0 indicates the default camera, you can specify 
 # Define the codec and create VideoWriter object
 fourcc = cv2.VideoWriter_fourcc(*'XVID')  # Specify the codec (XVID) - other codecs are available, such as MJPG
 FOLDER_PATH = "data/dataset1/"
-GESTURE_FOLDER = "swipe_right" # change this
-output_filename_prefix = "gesture_swipe_left_"  # Prefix for output file names
+GESTURE_FOLDER = "wave" # change this
+output_filename_prefix = f"gesture_{GESTURE_FOLDER}_"  # Prefix for output file names
 frame_width = int(camera.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(camera.get(cv2.CAP_PROP_FRAME_HEIGHT))
 out = None

@@ -1,3 +1,5 @@
+# model build is broken, don't use this
+
 import os 
 import numpy as np 
 import tensorflow as tf
