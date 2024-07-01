@@ -14,11 +14,16 @@ from sklearn.calibration import LabelEncoder
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.model_selection import train_test_split
 
-input_dir = "model/model5/data/dataset4/"
+input_dir = "model/model6/data/dataset5/"
 
 
 def calcualte_hand_motion_features(df, landmark_cols):
+    """
+    function to feature engineer 3 new features:
+    velocity, accleration, and pairwise distances between all ladmarks 
 
+    returns a pandas dataframe
+    """
     new_cols = {}
 
     for col in landmark_cols:
@@ -106,7 +111,7 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_val_scaled = scaler.transform(X_val)
 X_test_scaled = scaler.transform(X_test)
 
-
+# part of reshaping to match LSTM
 def create_sequences(data, labels, timesteps):
     sequences = []
     sequence_labels = []
@@ -143,7 +148,7 @@ print(f"Test Loss: {loss}, Test Accuracy: {accuracy}")
 y_pred = model.predict(X_test_reshaped)
 y_pred_classes = np.argmax(y_pred, axis=1)
 
-# model.save("model/model6/data/lstm_v2.h5")
+model.save("model/model6/data/lstm_v2.keras")
 
 # get the class labels
 class_labels_df = pd.DataFrame({'gesture': class_labels})
