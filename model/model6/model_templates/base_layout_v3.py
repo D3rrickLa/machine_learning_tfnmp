@@ -147,7 +147,7 @@ print(f"Test Loss: {loss}, Test Accuracy: {accuracy}")
 # y_pred = model.predict(X_test_reshaped)
 # y_pred_classes = np.argmax(y_pred, axis=1)
 
-model.save("model/model6/data/lstm_v3.h5")
+model.save("model/model6/data/lstm_v4.keras")
 
 # get the class labels
 class_labels_df = pd.DataFrame({'gesture': class_labels})

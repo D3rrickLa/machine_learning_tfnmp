@@ -166,6 +166,3 @@ cython_debug/
 
 # dataset
 data
-*.pkl
-.csv
-
