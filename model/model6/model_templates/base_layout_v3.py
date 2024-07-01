@@ -6,6 +6,7 @@ from itertools import combinations
 import os
 
 
+import joblib
 from keras._tf_keras.keras.models import Sequential
 from keras._tf_keras.keras.layers import LSTM, Dense
 import numpy as np
@@ -14,21 +15,20 @@ from sklearn.calibration import LabelEncoder
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.model_selection import train_test_split
 
-input_dir = "model/model6/data/dataset5/"
 
 
-def calcualte_hand_motion_features(df, landmark_cols):
+
+def calculate_hand_motion_features(df, landmark_cols):
     """
     function to feature engineer 3 new features:
     velocity, accleration, and pairwise distances between all ladmarks 
 
     returns a pandas dataframe
     """
+    
     new_cols = {}
-
     for col in landmark_cols:
         new_cols[f"velocity_{col}"] = df[col].diff().fillna(0)
-
         new_cols[f"acceleration_{col}"] = new_cols[f"velocity_{col}"].diff().fillna(0)
         
     # Calculate pairwise distances between all landmarks
@@ -44,9 +44,7 @@ def calcualte_hand_motion_features(df, landmark_cols):
         new_cols[distance_col] = np.sqrt((df[x1] - df[x2])**2 + (df[y1] - df[y2])**2 + (df[z1] - df[z2])**2)
     
     new_df = pd.DataFrame(new_cols)
-
     return pd.concat([df, new_df], axis=1)
-
 
 def create_dataframe_from_dataset(input_path):
     """
@@ -83,7 +81,7 @@ def create_dataframe_from_dataset(input_path):
             # this is where we will do the feature extraction, simpler to do it 
             # with the data coming in rather than on the whole set
 
-            dataframe = calcualte_hand_motion_features(dataframe.copy(), landmark_cols=landmark_cols)
+            dataframe = calculate_hand_motion_features(dataframe.copy(), landmark_cols=landmark_cols)
 
             data_frames.append(dataframe)
     
@@ -92,9 +90,8 @@ def create_dataframe_from_dataset(input_path):
     else:
         return pd.concat(data_frames, ignore_index=True)
     
-
+input_dir = "model/model6/data/dataset5/"
 data = create_dataframe_from_dataset(input_dir).dropna()
-
 
 # seperate the features (X) and targets (y)
 X = data.drop(columns=['gesture'], axis=1)
@@ -110,6 +107,8 @@ scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_val_scaled = scaler.transform(X_val)
 X_test_scaled = scaler.transform(X_test)
+
+joblib.dump(scaler, "model/model6/data/scaler.pkl")
 
 # part of reshaping to match LSTM
 def create_sequences(data, labels, timesteps):
@@ -145,10 +144,10 @@ loss, accuracy = model.evaluate(X_test_reshaped, y_test_reshaped)
 print(f"Test Loss: {loss}, Test Accuracy: {accuracy}")
 
 # Predictions
-y_pred = model.predict(X_test_reshaped)
-y_pred_classes = np.argmax(y_pred, axis=1)
+# y_pred = model.predict(X_test_reshaped)
+# y_pred_classes = np.argmax(y_pred, axis=1)
 
-model.save("model/model6/data/lstm_v2.keras")
+model.save("model/model6/data/lstm_v3.h5")
 
 # get the class labels
 class_labels_df = pd.DataFrame({'gesture': class_labels})
