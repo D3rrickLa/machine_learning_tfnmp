@@ -137,15 +137,15 @@ model.add(Dense(len(label_encoder.classes_), activation='softmax'))
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 # need to change this to an actual val set
-model.fit(X_test_reshaped, y_train_reshaped, epochs=20, batch_size=32, validation_data=(X_val_reshaped, y_val_reshaped))
+model.fit(X_test_reshaped, y_train_reshaped, epochs=30, batch_size=32, validation_data=(X_val_reshaped, y_val_reshaped))
 
 # Evaluate the model
 loss, accuracy = model.evaluate(X_test_reshaped, y_test_reshaped)
 print(f"Test Loss: {loss}, Test Accuracy: {accuracy}")
 
 # Predictions
-# y_pred = model.predict(X_test_reshaped)
-# y_pred_classes = np.argmax(y_pred, axis=1)
+y_pred = model.predict(X_test_reshaped)
+y_pred_classes = np.argmax(y_pred, axis=1)
 
 model.save("model/model6/data/lstm_v4.keras")
 
