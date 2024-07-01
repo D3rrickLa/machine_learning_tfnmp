@@ -8,86 +8,85 @@ from mediapipe.tasks.python import vision
 import time
 
 
-BaseOptions = python.BaseOptions
-HandLandmarker = vision.HandLandmarker 
-HandLandmarkerOptions = vision.HandLandmarkerOptions 
-HandLandmarkerResult = vision.HandLandmarkerResult
-VisionRunningMode = vision.RunningMode
+class Landmarks():
+    def __init__(self):
+        self.HandLandmarker = vision.HandLandmarker 
+        self.HandLandmarkerOptions = vision.HandLandmarkerOptions 
+        self.HandLandmarkerResult = None
+        self.VisionRunningMode = vision.RunningMode
+        self.createLandmarker()
+        self.frame = None
 
-RESULT = 0
-def print_result(result: HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
-    global RESULT
-    RESULT = result
-    # print('hand landmarker result: {}'.format(result))
+    def createLandmarker(self):
+        def update_result(result: vision.HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
+            self.HandLandmarkerResult = result
+            # print('hand landmarker result: {}'.format(result))
+            
+        self.BaseOptions = python.BaseOptions
+        
+        landmark_options = self.HandLandmarkerOptions(
+            base_options = self.BaseOptions(model_asset_path="model/hand_landmarker.task"),
+            running_mode = self.VisionRunningMode.LIVE_STREAM,
+            num_hands = 2, 
+            min_hand_presence_confidence=0.80, 
+            min_tracking_confidence=0.80,
+            result_callback=update_result
+        )
 
+        self.HandLandmarker = self.HandLandmarker.create_from_options(landmark_options)
 
-def create_landmarker():
+    def detect_async(self, frame):
+        try:
+            mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = frame)
+            self.HandLandmarker.detect_async(mp_image, timestamp_ms = int(time.time() * 1000))
 
-    landmark_options = HandLandmarkerOptions(
-        base_options = BaseOptions(model_asset_path="model/hand_landmarker.task"),
-        running_mode = VisionRunningMode.LIVE_STREAM,
-        num_hands = 2, 
-        min_hand_presence_confidence=0.80, 
-        min_tracking_confidence=0.80,
-        result_callback=print_result
-    )
+            return self.HandLandmarkerResult
+        except Exception as e:
+            raise e
 
-    landmarker = HandLandmarker.create_from_options(landmark_options)
-
-    return landmarker
-
-
-def annotate_image(image, landmarker):
-    """
-    displays the landmarks onto the hands 
-    """
+def annotate_image(image, landmarker_result):
     MARGIN = 10  # pixels
     FONT_SIZE = 1
     FONT_THICKNESS = 1
-    HANDEDNESS_TEXT_COLOR = (88, 205, 54) # vibrant green
+    HANDEDNESS_TEXT_COLOR = (212, 130, 173)
 
-    hand_landmark_list = landmarker.hand_landmarks 
-    handedness_list = landmarker.handedness
+    if landmarker_result is None or not landmarker_result.hand_landmarks:
+        return image
+
+    hand_landmark_list = landmarker_result.hand_landmarks
     annotated_image = np.copy(image)
 
     for i in range(len(hand_landmark_list)):
         hand_landmarks = hand_landmark_list[i]
-        handedness = handedness_list[i]
 
-        # draw the hand landmarks 
-        hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()        
+        # Draw the hand landmarks.
+        hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
         hand_landmarks_proto.landmark.extend([
-        landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in hand_landmarks
-        ])
-        solutions.drawing_utils.draw_landmarks(
+        landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in hand_landmarks])
+        mp.solutions.drawing_utils.draw_landmarks(
         annotated_image,
         hand_landmarks_proto,
-        solutions.hands.HAND_CONNECTIONS,
-        solutions.drawing_styles.get_default_hand_landmarks_style(),
-        solutions.drawing_styles.get_default_hand_connections_style())
-
-        return annotated_image
-
-
-def get_annotated_image(frame, landmarker):
-    mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = frame)
-    timestamp = int(time.time() * 1000)
-    landmarker.detect_async(mp_image, timestamp)
-
-    return annotate_image(mp_image, RESULT)
-
+        mp.solutions.hands.HAND_CONNECTIONS,
+        mp.solutions.drawing_styles.get_default_hand_landmarks_style(),
+        mp.solutions.drawing_styles.get_default_hand_connections_style())
+        
+    return annotated_image
 
 def main():
     capture = cv2.VideoCapture(0)
-    landmarker = create_landmarker()
+    landmarker = Landmarks()
 
     while capture.isOpened():
         ret, frame = capture.read()
         if not ret:
-            break 
+            break
         
-        
-        anno_frame = get_annotated_image(frame, landmarker)
+        X = landmarker.detect_async(frame)
+        if X and X.hand_landmarks:
+            anno_frame = annotate_image(frame, X)
+        else:
+            anno_frame = frame
+
         cv2.imshow("Recording Window",anno_frame)
 
 
@@ -100,3 +99,17 @@ def main():
 
 
 main()
+"""
+
+
+
+
+
+def get_annotated_image(frame, landmarker):
+    mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = frame)
+    timestamp = int(time.time() * 1000)
+    landmarker.detect_async(mp_image, timestamp)
+
+    return annotate_image(mp_image, RESULT)
+
+"""
