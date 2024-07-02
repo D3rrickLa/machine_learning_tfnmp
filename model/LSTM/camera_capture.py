@@ -49,8 +49,8 @@ def annotate_image(image, landmarker_result):
 
     hand_landmark_list = landmarker_result.hand_landmarks
     annotated_image = np.copy(image)
-
-    for i in range(len(hand_landmark_list)):
+    hand_landmark_list_len = len(hand_landmark_list)
+    for i in range(hand_landmark_list_len):
         hand_landmarks = hand_landmark_list[i]
 
         # Draw the hand landmarks.
