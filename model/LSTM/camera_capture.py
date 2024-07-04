@@ -3,83 +3,24 @@ import os
 import cv2 
 import numpy as np
 import mediapipe as mp
-from mediapipe import solutions
-from mediapipe.framework.formats import landmark_pb2
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision 
 import time
+import keyboard
 
-
-class Landmarks():
-    def __init__(self):
-        self.HandLandmarker = vision.HandLandmarker 
-        self.HandLandmarkerOptions = vision.HandLandmarkerOptions 
-        self.HandLandmarkerResult = None
-        self.createLandmarker()
-
-    def createLandmarker(self):
-        def update_result(result: vision.HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
-            self.HandLandmarkerResult = result
-            
-        self.BaseOptions = python.BaseOptions
-        
-        landmark_options = self.HandLandmarkerOptions(
-            base_options = self.BaseOptions(model_asset_path="model/hand_landmarker.task"),
-            running_mode = vision.RunningMode.LIVE_STREAM,
-            num_hands = 2, 
-            min_hand_detection_confidence = 0.60,
-            min_hand_presence_confidence= 0.60, 
-            min_tracking_confidence = 0.70,
-            result_callback = update_result
-        )
-
-        self.HandLandmarker = self.HandLandmarker.create_from_options(landmark_options)
-
-    def detect_async(self, frame):
-        try:
-            mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = frame)
-            self.HandLandmarker.detect_async(mp_image, timestamp_ms = int(time.time() * 1000))
-            return self.HandLandmarkerResult
-
-        except Exception as e:
-            print("Error in detect_landmarks:", e)
-            return None
-
-def annotate_image(image, landmarker_result):
-    if landmarker_result is None or not landmarker_result.hand_landmarks:
-        return image
-
-    hand_landmark_list = landmarker_result.hand_landmarks
-    annotated_image = np.copy(image)
-    hand_landmark_list_len = len(hand_landmark_list)
-    for i in range(hand_landmark_list_len):
-        hand_landmarks = hand_landmark_list[i]
-
-        # Draw the hand landmarks.
-        hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
-        hand_landmarks_proto.landmark.extend([
-        landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in hand_landmarks])
-        mp.solutions.drawing_utils.draw_landmarks(
-            annotated_image,
-            hand_landmarks_proto,
-            mp.solutions.hands.HAND_CONNECTIONS,
-            mp.solutions.drawing_styles.get_default_hand_landmarks_style(),
-            mp.solutions.drawing_styles.get_default_hand_connections_style()
-        )
-    
-        
-    return annotated_image
 
 def main():
     capture = cv2.VideoCapture(0)
-    landmarker = Landmarks()
+
+    mp_hands = mp.solutions.hands
+    hands = mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.6, min_tracking_confidence=0.6)
+    mp_drawing = mp.solutions.drawing_utils
     
     output_dir = "data"
     os.makedirs(output_dir, exist_ok=True)
 
     isRecording = False
     landmark_seq = []
-    gesture_action = "THANK-YOU"
+    landmark_world_seq = []
+    gesture_action = "THANK-YOU" # Change this 
 
     frame_rate = capture.get(cv2.CAP_PROP_FPS)
     frame_width = capture.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -90,36 +31,34 @@ def main():
         if not ret:
             break
         
-        landmarker_result = landmarker.detect_async(frame)
-        if landmarker_result:
-          
-            if isRecording:
-                landmarks = [lm for lm in landmarker_result.hand_landmarks]
-                landmarks_flat = [coord for lm in landmarks for coord in (lm.x, lm.y, lm.z)]
-                landmark_seq.append(landmarks_flat)
+        results = hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-            anno_frame = annotate_image(frame, landmarker_result)
-        else:
-            anno_frame = frame
+        if results.multi_hand_landmarks and results.multi_hand_world_landmarks:         
+            for hand_landmarks, hand_world_landmarks in zip(results.multi_hand_landmarks, results.multi_hand_world_landmarks):
+                mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-        cv2.imshow("Recording Window",anno_frame)
+                if isRecording:
+                    get_landmarks(landmark_seq, hand_landmarks)
+                    get_landmarks(landmark_world_seq, hand_world_landmarks)       
 
+        cv2.imshow("Hand Gesture Recording", frame)
 
         key = cv2.waitKey(5) & 0xFF
-
         if key == ord('q'):
             break
         elif key == ord('r'):
             if not isRecording:
-                isRecording = True
-                landmark_seq = []  # Reset the landmark sequence
+                isRecording = True 
+                landmark_seq = []
+                landmark_world_seq = [] 
                 print("Recording started...")
+
         elif key == ord('s'):
             if isRecording:
-                isRecording = False
-                print("Recording stopped.")
+                isRecording = False 
+                print("Recording Stopped")
 
-                if landmark_seq:
+                if landmark_seq and landmark_world_seq:
                     cur_time = int(time.time_ns())
                     output_file = os.path.join(output_dir, f"{gesture_action}_{cur_time}.csv")
 
@@ -127,32 +66,42 @@ def main():
                         writer = csv.writer(f)
 
                         # Write the header into the CSV
-                        header = ['frame'] + [f'{coord}_{i}' for i in range(21) for coord in ('x', 'y', 'z')] + ['frame_rate', 'frame_width', 'frame_height']
+                        header = ['frame'] + [f'{coord}_{i}' for i in range(21) for coord in ('x', 'y', 'z')] + [f'{coord}_{i}' for i in range(21) for coord in ('wx', 'wy', 'wz')] + ['frame_rate', 'frame_width', 'frame_height']
                         writer.writerow(header)
 
                         # Write the data
-                        for i, frame_data in enumerate(landmark_seq):
-                            writer.writerow([i] + frame_data + [frame_rate, frame_width, frame_height])
+                        for i, (frame_data, wrld_frame_data) in enumerate(zip(landmark_seq, landmark_world_seq)):
+                            writer.writerow([i] + frame_data + wrld_frame_data + [frame_rate, frame_width, frame_height])
+        
+        elif key == ord('o'):
+            n_seconds = 3
+            n_times = 5
+            how_long = 3
+            for _ in range(n_times):
+                cv2.imshow("Hand Gesture Recording", frame)
+                for i in range(n_seconds, 0, -1):
+                    print(f"Recording starts in {i} seconds")
+                    time.sleep(1)
+                
+                print("Recording started")
+                start_time = time.time()
+                keyboard.press_and_release('r')
+                while time.time() - start_time < how_long:
+                    continue
+
+                print("Recording Ended\n")
+                keyboard.press_and_release('s')
         else:
             # No default action to break the loop
             pass
-        
+
     capture.release()
     cv2.destroyAllWindows()
 
+def get_landmarks(lm_seq, hand_lm):
+    landmarks = [lm for lm in hand_lm.landmark]
+    landmarks_flat = [coord for lm in landmarks for coord in (lm.x, lm.y, lm.z)]
+    lm_seq.append(landmarks_flat)
+
 
 main()
-"""
-
-
-
-
-
-def get_annotated_image(frame, landmarker):
-    mp_image = mp.Image(image_format = mp.ImageFormat.SRGB, data = frame)
-    timestamp = int(time.time() * 1000)
-    landmarker.detect_async(mp_image, timestamp)
-
-    return annotate_image(mp_image, RESULT)
-
-"""
