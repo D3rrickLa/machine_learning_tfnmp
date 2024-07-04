@@ -27,8 +27,6 @@ def calculate_hand_motion_features(df, landmark_cols):
     """
     return 0
 
-
-
 def create_dataframe_from_data(input_path):
     """
     Takes in the multiple CSV files from the input_path and creates 1 dataframe out of them.
@@ -47,7 +45,7 @@ def create_dataframe_from_data(input_path):
 
             dataframe = pd.read_csv(file_path)
 
-            # gathers the landmark column hands (once)
+            # Gathers the landmark column hands (once)
             if(len(landmark_cols) == 0 and len(landmark_world_cols) == 0):
                 landmark_cols = [col for col in dataframe.columns if col.startswith(("x", "y", "z"))]
                 landmark_world_cols = [col for col in dataframe.columns if col.startswith(("wx", "wy", "wz"))]
@@ -75,17 +73,26 @@ def main():
     X = dataframe.drop(columns=['gesture'], axis=1)
     y = dataframe['gesture']
 
-    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
-    # X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42, shuffle=False)
+    tscv = TimeSeriesSplit(n_splits=5) # Extracts al lunique value sfrom the gesture_index
 
-    stratifcation_factor = y 
-    splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-    for train_index, val_index in splitter.split(X, stratifcation_factor):
-        X_train, X_val = X.iloc[train_index], X.iloc[val_index]
-        y_train, y_val = y.iloc[train_index], y.iloc[val_index]
-    
-    _, X_test, _, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
+    # Identify unique gestures
+    unique_gestures = dataframe['gesture_index'].unique()
 
+    for train_gesture_index, test_gesture_index in tscv.split(unique_gestures):
+        train_gestures = unique_gestures[train_gesture_index]
+        test_gestures = unique_gestures[test_gesture_index]
 
+        # Split data based on gesture indices
+        X_train = X[X['gesture_index'].isin(train_gestures)]
+        y_train = y[X['gesture_index'].isin(train_gestures)]
+        X_test = X[X['gesture_index'].isin(test_gestures)]
+        y_test = y[X['gesture_index'].isin(test_gestures)]
+
+        # Optionally split further into validation set (replace 0.8 with your desired ratio)
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42, shuffle=False)
+
+        print("X_train shape:", X_train.shape)
+        print("X_val shape:", X_val.shape)
+        print("X_test shape:", X_test.shape)
 
 main()
