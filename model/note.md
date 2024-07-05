@@ -34,3 +34,14 @@ feature selection - selecting key dataset features to reduce dimensionality
     method 1 in spliting the data
     for a given gesture_index, take 70 for trainning and 15/15 for val and test
     """
+
+
+The quote "Feature engineering should focus on extracting features from the entire sequence rather than individually" is crucial for time series data like gestures.
+
+Your current implementation seems to address this by calculating features like velocity and acceleration, which depend on multiple data points within the sequence (not individual frames).
+However, the relative landmark angles might need further consideration. Are you calculating angles for each frame within the sequence, or for the entire gesture?
+Recommendations:
+
+If you intend to capture the overall gesture motion through angles, consider calculating them over the entire sequence (e.g., average or maximum angle) instead of for each frame.
+Explore additional features that capture the gesture dynamics across the entire sequence, such as range of motion for each landmark or average speed.
+By implementing these solutions and refining your feature engineering based on the "important quote," you can ensure consistent data shapes and potentially improve your gesture recognition model's performance.
