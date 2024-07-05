@@ -27,3 +27,10 @@ feature selection - selecting key dataset features to reduce dimensionality
             y_train_fold, y_val_fold = y_train.iloc[train_index], y_train.iloc[val_index]
 
             # Train and evaluate your model on each fold...
+
+
+
+    """
+    method 1 in spliting the data
+    for a given gesture_index, take 70 for trainning and 15/15 for val and test
+    """
