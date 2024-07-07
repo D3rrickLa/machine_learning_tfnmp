@@ -10,15 +10,18 @@
 from itertools import combinations
 import os
 
+from keras._tf_keras.keras.callbacks import EarlyStopping 
 from keras._tf_keras.keras.models import Sequential
 from keras._tf_keras.keras.layers import LSTM, Dense, Dropout
+from keras._tf_keras.keras.regularizers import l2
 import numpy as np
 import pandas as pd
 from sklearn.calibration import LabelEncoder
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer, SimpleImputer
+from sklearn.impute import IterativeImputer, KNNImputer, SimpleImputer
+import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
 from sklearn.model_selection import TimeSeriesSplit, train_test_split
 from sklearn.pipeline import Pipeline
@@ -54,54 +57,55 @@ def normalize_landmark_locations(df : pd.DataFrame, landmark_cols):
     return df
 
 def calculate_landmark_angles(df: pd.DataFrame, landmark_cols):
-  """
-  Calculates overall gesture angles for each landmark combination.
+    """
+    Calculates overall gesture angles for each landmark combination.
 
-  Args:
-      df (pd.DataFrame): DataFrame containing landmark data.
-      landmark_cols (list): List of column names representing landmark coordinates.
+    Args:
+        df (pd.DataFrame): DataFrame containing landmark data.
+        landmark_cols (list): List of column names representing landmark coordinates.
 
-  Returns:
-      pd.DataFrame: DataFrame containing a single column for each landmark combination angle (average, min, or max).
-  """
+    Returns:
+        pd.DataFrame: DataFrame containing a single column for each landmark combination angle (average, min, or max).
+    """
 
-  angles = {}
-  for i in range(len(landmark_cols) - 2):
-    col1, col2, col3 = landmark_cols[i], landmark_cols[i+1], landmark_cols[i+2]
-    angle_col = f"angle_{col1}_{col2}_{col3}"
+    angles = {}
+    for i in range(len(landmark_cols) - 2):
+        col1, col2, col3 = landmark_cols[i], landmark_cols[i+1], landmark_cols[i+2]
+        angle_col = f"angle_{col1}_{col2}_{col3}"
 
-    # Compute vectors between landmarks (same as before)
-    vec1 = df[[f'x_{col2[2:]}', f'y_{col2[2:]}', f'z_{col2[2:]}']].values - df[[f'x_{col1[2:]}', f'y_{col1[2:]}', f'z_{col1[2:]}']].values
-    vec2 = df[[f'x_{col3[2:]}', f'y_{col3[2:]}', f'z_{col3[2:]}']].values - df[[f'x_{col2[2:]}', f'y_{col2[2:]}', f'z_{col2[2:]}']].values
+        # Compute vectors between landmarks (same as before)
+        vec1 = df[[f'x_{col2[2:]}', f'y_{col2[2:]}', f'z_{col2[2:]}']].values - df[[f'x_{col1[2:]}', f'y_{col1[2:]}', f'z_{col1[2:]}']].values
+        vec2 = df[[f'x_{col3[2:]}', f'y_{col3[2:]}', f'z_{col3[2:]}']].values - df[[f'x_{col2[2:]}', f'y_{col2[2:]}', f'z_{col2[2:]}']].values
 
-    # Calculate dot product and magnitudes (same as before)
-    dot_product = np.sum(vec1 * vec2, axis=1)
-    magnitude1 = np.linalg.norm(vec1, axis=1)
-    magnitude2 = np.linalg.norm(vec2, axis=1)
+        # Calculate dot product and magnitudes (same as before)
+        dot_product = np.sum(vec1 * vec2, axis=1)
+        magnitude1 = np.linalg.norm(vec1, axis=1)
+        magnitude2 = np.linalg.norm(vec2, axis=1)
 
-    # Avoid division by zero or very small values (same as before)
-    mask = (magnitude1 * magnitude2) != 0
-    dot_product[mask] /= (magnitude1[mask] * magnitude2[mask])
+        # Avoid division by zero or very small values (same as before)
+        mask = (magnitude1 * magnitude2) != 0
+        dot_product[mask] /= (magnitude1[mask] * magnitude2[mask])
 
-    # Clip values to prevent invalid input to arccos (same as before)
-    dot_product = np.clip(dot_product, -1.0, 1.0)
+        # Clip values to prevent invalid input to arccos (same as before)
+        dot_product = np.clip(dot_product, -1.0, 1.0)
 
-    # Compute angle between vectors
-    angles[angle_col] = np.arccos(dot_product) * (180 / np.pi)
+        # Compute angle between vectors
+        angles[angle_col] = np.arccos(dot_product) * (180 / np.pi)
 
-  # Calculate representative angle (choose one option)
-  representative_angles = {}
-  for angle_col, angle_values in angles.items():
-    # Option 1: Average Angle
-    representative_angles[angle_col] = np.mean(angle_values)
+    # Calculate representative angle (choose one option)
+    representative_angles = {}
+    for angle_col, angle_values in angles.items():
+        # Option 1: Average Angle
+        representative_angles[angle_col] = np.mean(angle_values)
 
-    # Option 2: Minimum Angle
-    # representative_angles[angle_col] = np.min(angle_values)
+        # Option 2: Minimum Angle
+        # representative_angles[angle_col] = np.min(angle_values)
 
-    # Option 3: Maximum Angle
-    # representative_angles[angle_col] = np.max(angle_values)
+        # Option 3: Maximum Angle
+        # representative_angles[angle_col] = np.max(angle_values)
 
-  return pd.DataFrame(representative_angles)
+    # Create a DataFrame with the calculated angles
+    return pd.DataFrame(representative_angles, index=[0])  # Ensure a DataFrame with scalar values has an index
 
 def calculate_hand_motion_features(df, landmark_cols):
     """
@@ -185,7 +189,7 @@ def create_dataframe_from_data(input_path):
     if len(data_frames) == 0:
         raise ValueError("Dataframe has no data")
     else:
-        return pd.concat(data_frames, ignore_index=True).dropna(), landmark_cols, landmark_world_cols
+        return pd.concat(data_frames, ignore_index=True), landmark_cols, landmark_world_cols
     
 def reshape_for_lstm(X, time_steps=30):
     n_samples = len(X) // time_steps
@@ -196,7 +200,7 @@ def main():
     input_dir = "data/"
     dataframe, landmark_cols, landmark_world_cols = create_dataframe_from_data(input_dir)
 
-    dataframe.to_csv('model/LSTM/df_combined.csv')
+    # dataframe.to_csv('model/LSTM/df_combined.csv')
 
     X = dataframe.drop(columns=['gesture'], axis=1)
     y = dataframe['gesture']
@@ -204,7 +208,7 @@ def main():
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.2, shuffle=False, random_state=42)
     X_train, X_val, y_train , y_val = train_test_split(X_train, y_train, test_size=.25, shuffle=False, random_state=42)
 
-    print_shapes(X_train, X_test, y_train, y_test, X_val, y_val)
+    # print_shapes(X_train, X_test, y_train, y_test, X_val, y_val)
 
     X_train = calculate_hand_motion_features(X_train, landmark_cols)
     X_val = calculate_hand_motion_features(X_val, landmark_cols) # problem with the x_val and X_test, size changes
@@ -217,7 +221,8 @@ def main():
 
 
     numerical_transformer = Pipeline(steps= [
-        ('scaler', StandardScaler())
+        ('imputer', KNNImputer(n_neighbors=5)),
+        ('scaler', MinMaxScaler())
     ])
 
     X_train_transformed = numerical_transformer.fit_transform(X_train)
@@ -231,47 +236,73 @@ def main():
     y_train_encoded = label_encoder.transform(y_train)
     y_val_encoded = label_encoder.transform(y_val)
     y_test_encoded = label_encoder.transform(y_test)
-
     
-    print_shapes(X_train_transformed, X_test_transformed, y_train_encoded, y_test_encoded, X_val_transformed, y_val_encoded)
-
-    # Define LSTM model
-    model = Sequential()
-    model.add(LSTM(units=50, input_shape=(X_train_transformed.shape[1], 1)))
-    model.add(Dropout(0.2))
-    model.add(Dense(units=len(label_encoder.classes_), activation='softmax'))
+    # print_shapes(X_train_transformed, X_test_transformed, y_train_encoded, y_test_encoded, X_val_transformed, y_val_encoded)
     
-    # Compile the model
-    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-
     # Reshape X_train_transformed, X_val_transformed, X_test_transformed for LSTM input
     X_train_reshaped = X_train_transformed.reshape((X_train_transformed.shape[0], X_train_transformed.shape[1], 1))
     X_val_reshaped = X_val_transformed.reshape((X_val_transformed.shape[0], X_val_transformed.shape[1], 1))
     X_test_reshaped = X_test_transformed.reshape((X_test_transformed.shape[0], X_test_transformed.shape[1], 1))
 
+    # print_shapes(X_train_reshaped, X_test_reshaped, y_train_encoded, y_test_encoded, X_val_reshaped, y_val_encoded)
+
+
+    # Define LSTM model
+    model = Sequential()
+    model.add(LSTM(units=64, input_shape=(X_train_transformed.shape[1], 1), return_sequences=True, kernel_regularizer=l2()))
+    model.add(Dropout(0.2))
+    model.add(LSTM(units=8, return_sequences=False)),  # Optional additional LSTM layer
+    model.add(Dense(units=len(label_encoder.classes_), activation='softmax'))
+    
+    # Compile the model
+    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+
     # Train the model
-    history = model.fit(X_train_reshaped, y_train_encoded, epochs=10, batch_size=32, validation_data=(X_val_reshaped, y_val_encoded))
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    history = model.fit(
+        X_train_reshaped, y_train_encoded, 
+        epochs=10, 
+        batch_size=32,
+        validation_data=(X_val_reshaped, y_val_encoded), 
+        callbacks=[early_stopping])
 
     # Evaluate the model on test set
     test_loss, test_acc = model.evaluate(X_test_reshaped, y_test_encoded)
     print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
 
+
+    # Extracting the history
+    train_loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = range(1, len(train_loss) + 1)
+    epochs = range(len(train_loss))  # Assuming loss recorded for each epoch
+
+    # Plotting
+    plt.plot(epochs, train_loss, label='Train Loss')
+    plt.plot(epochs, val_loss, label='Validation Loss')
+    plt.title('Training and Validation Loss (LSTM Keras Model)')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
     # Make predictions
     y_pred = model.predict(X_test_reshaped)
+    y_pred_classes = np.argmax(y_pred, axis=1)
 
-    y_pred_labels = np.argmax(y_pred, axis=1)
-    y_test_labels = np.argmax(y_test_encoded, axis=1)
 
-    # Print some results
-    for i in range(len(y_test_labels)):
-        print(f"Actual: {y_test_labels[i]}, Predicted: {y_pred_labels[i]}")
 
-    # Calculate accuracy
-    accuracy = np.mean(y_test_labels == y_pred_labels)
-    print(f"Test Accuracy: {accuracy}")
+def create_sequences(data, labels, timesteps):
+    sequences = [] 
+    sequence_labels = [] 
 
-    # Print classification report
-    # print(classification_report(y_test_encoded, y_pred))
+    for i in range(len(data) - timesteps):
+        sequences.append(data[i:i +timesteps])
+        sequence_labels.append(labels[i + timesteps])
+
+    return np.array(sequences), np.array(sequence_labels)
 
 def print_shapes(X_train, X_test, y_train, y_test, X_val, y_val):
     print(X_train.shape)
