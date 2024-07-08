@@ -14,12 +14,13 @@ def main():
     hands = mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.6, min_tracking_confidence=0.6)
     mp_drawing = mp.solutions.drawing_utils
     
-    output_dir = "data"
+    output_dir = "data/data_2"
     os.makedirs(output_dir, exist_ok=True)
 
     isRecording = False
     landmark_seq = []
     landmark_world_seq = []
+    hand_seq = []
     gesture_action = "THANK-YOU" # Change this 
 
     frame_rate = capture.get(cv2.CAP_PROP_FPS)
@@ -31,15 +32,26 @@ def main():
         if not ret:
             break
         
+        frame = cv2.flip(frame, 1)
+
         results = hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
+        
+
         if results.multi_hand_landmarks and results.multi_hand_world_landmarks:         
-            for hand_landmarks, hand_world_landmarks in zip(results.multi_hand_landmarks, results.multi_hand_world_landmarks):
+            for hand_landmarks, hand_world_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_hand_world_landmarks, results.multi_handedness):
                 mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
+                lbl = [cls.label for cls in handedness.classification][0]
+                if lbl == "Left":
+                    cv2.putText(frame, lbl, (50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2, cv2.LINE_AA)
+                else:
+                    cv2.putText(frame, lbl, (200,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
 
                 if isRecording:
                     get_landmarks(landmark_seq, hand_landmarks)
                     get_landmarks(landmark_world_seq, hand_world_landmarks)       
+                    get_handedness(hand_seq, handedness)
 
         cv2.imshow("Hand Gesture Recording", frame)
 
@@ -66,12 +78,12 @@ def main():
                         writer = csv.writer(f)
 
                         # Write the header into the CSV
-                        header = ['frame'] + [f'{coord}_{i}' for i in range(21) for coord in ('x', 'y', 'z')] + [f'{coord}_{i}' for i in range(21) for coord in ('wx', 'wy', 'wz')] + ['frame_rate', 'frame_width', 'frame_height']
+                        header = ['frame'] + [f'{coord}_{i}' for i in range(21) for coord in ('x', 'y', 'z')] + [f'{coord}_{i}' for i in range(21) for coord in ('wx', 'wy', 'wz')] + ["hand", "score"] + ['frame_rate', 'frame_width', 'frame_height']
                         writer.writerow(header)
 
                         # Write the data
-                        for i, (frame_data, wrld_frame_data) in enumerate(zip(landmark_seq, landmark_world_seq)):
-                            writer.writerow([i] + frame_data + wrld_frame_data + [frame_rate, frame_width, frame_height])
+                        for i, (frame_data, wrld_frame_data, hand_data) in enumerate(zip(landmark_seq, landmark_world_seq, hand_seq)):
+                            writer.writerow([i] + frame_data + wrld_frame_data + hand_data + [frame_rate, frame_width, frame_height])
         
         elif key == ord('o'):
             n_seconds = 3
@@ -103,5 +115,13 @@ def get_landmarks(lm_seq, hand_lm):
     landmarks_flat = [coord for lm in landmarks for coord in (lm.x, lm.y, lm.z)]
     lm_seq.append(landmarks_flat)
 
+
+def get_handedness(hand_seq, hand_lm):
+    handedness_flat = [] 
+    for handedness in hand_lm.classification:
+        handedness_flat.append(handedness.label)
+        handedness_flat.append(handedness.score)
+
+    hand_seq.append(handedness_flat)
 
 main()
