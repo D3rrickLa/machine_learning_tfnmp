@@ -1,6 +1,7 @@
 # Version 2 of LSTM model, will be more precise than before
 from itertools import combinations
 import os
+import time
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -229,17 +230,26 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
         acceleration ✅
         jerk ✅
         pairwise distances ✅
-        landmark angles
+        landmark angles ✅
         gesture_stats - mean, variance, skewness, and kurtosis ✅
+
+        process time
+            elapsed_time_fuc - 0.15625
+            temp_distance - 6.671875
+            stats - 24.1875
     """
     df_copy = df.copy()
-
+ 
     # df_elapsed = calculate_elapsed_time(df_copy) 
     # df_temporal = calculate_temporal_features(df_copy, landmark_cols)
-    # df_stats = calculate_temporal_stats(df_copy, landmark_cols)
-    # df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
 
-    df_angle = calculate_landmark_angles(df_copy, landmark_cols)
+    s = time.process_time()
+    df_stats = calculate_temporal_stats(df_copy, landmark_cols)
+    end = time.process_time() - s 
+    print(end)
+
+    # df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
+    # df_angle = calculate_landmark_angles(df_copy, landmark_cols)
 
     # print(df_copy.columns.values.tolist())
 
