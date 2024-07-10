@@ -185,7 +185,7 @@ def calculate_landmark_angles(df: pd.DataFrame, cols: list):
             angles = []
             
             # Iterate over each landmark
-            for j in range(len(cols)//3):
+            for j in range(21):
                 idx = j  # Adjust if cols include additional information beyond x, y, z (e.g., wx, wy, wz)
                 
                 # Extract coordinates for point_a and point_b
@@ -209,19 +209,15 @@ def calculate_landmark_angles(df: pd.DataFrame, cols: list):
 
             angles_for_gesture.append(angles)
 
-        angles_per_gesture_list.extend(angles_for_gesture)
-        
-        
-        break      
+        angles_per_gesture_list.extend(angles_for_gesture) 
 
     # Create DataFrame with angles_per_gesture_list
-    num_landmarks = len(cols) // 3
-    columns = [f"{dim}_{i}_{i+1}_angle" for dim in ["X", "Y", "Z"] for i in range(num_landmarks - 1)]
-    angles_df = pd.DataFrame(angles_per_gesture_list, columns=columns)
+    angles_cols = [f"angle_{n1}" for n1 in range(21)]
+    angles_per_gesture_list.insert(0, [0.0] * len(angles_cols))
+    angles_df = pd.DataFrame(angles_per_gesture_list, columns=angles_cols)
+    # Append angles_df to df
+    df = pd.concat([df, angles_df], axis=1)
 
-
-    print(angles_df.head(20))
-    print(df["frame"].head(30))
     return df
 
 
@@ -244,6 +240,7 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     # df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
 
     df_angle = calculate_landmark_angles(df_copy, landmark_cols)
+
     # print(df_copy.columns.values.tolist())
 
    
