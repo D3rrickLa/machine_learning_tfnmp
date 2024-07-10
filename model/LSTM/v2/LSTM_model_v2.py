@@ -2,6 +2,7 @@
 from itertools import combinations
 import os
 
+from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats import skew, kurtosis
@@ -86,55 +87,62 @@ def calculate_elapsed_time(df: pd.DataFrame):
 
     return df
 
-def calculate_temporal_features_per_gesture(df: pd.DataFrame, landmark_cols: list):
-
-    velocity_cols = [f"velocity_{col}" for col in landmark_cols]
-    acceleration_cols = [f"acceleration_{col}" for col in landmark_cols]
-    jerk_cols = [f"jerk_{col}" for col in landmark_cols]
-
+def calculate_temporal_features(df: pd.DataFrame, cols: list):
+    velocity_cols = [f"velocity_{col}" for col in cols]
+    acceleration_cols = [f"acceleration_{col}" for col in cols]
+    jerk_cols = [f"jerk_{col}" for col in cols]
     
-    nan_df = pd.DataFrame(columns=velocity_cols + acceleration_cols + jerk_cols, dtype=float)
-    df = pd.concat([df, nan_df], axis=1)
+    for _, gesture_data in df.groupby("gesture_index"): 
+        gesture_data = gesture_data.sort_values(by="frame")
 
-    df = df.sort_values(by=["gesture_index", "frame"])
+        avg_frame_rate = np.mean(gesture_data["frame_rate"])
+        time_diffs = gesture_data["frame"].diff().fillna(1) / avg_frame_rate
+        
+        velocities = gesture_data[cols].diff().div(time_diffs, axis=0).fillna(0)
+        accelerations = velocities.diff().div(time_diffs, axis=0).fillna(0)
+        jerks = accelerations.diff().div(time_diffs, axis=0).fillna(0)
 
+        df.loc[gesture_data.index, velocity_cols] = velocities.values
+        df.loc[gesture_data.index, acceleration_cols] = accelerations.values
+        df.loc[gesture_data.index, jerk_cols] = jerks.values
+
+    return df
+  
+def calculate_temporal_stats(df: pd.DataFrame, cols: list):
+    mean_cols = [f"mean_{col}" for col in cols]
+    var_cols = [f"variance_{col}" for col in cols] 
+    dev_cols = [f"deviation_{col}" for col in cols] 
+    skew_cols = [f"skew_{col}" for col in cols] 
+    kurt_cols = [f"kurt_{col}" for col in cols] 
 
     for _, gesture_data in df.groupby("gesture_index"):
-        gesture_data_sorted = gesture_data.sort_values(by="frame")
+        gesture_data = gesture_data.sort_values(by="frame")
 
-        # Calculate time differences based on frame rate
-        avg_frame_rate = np.mean(gesture_data_sorted["frame_rate"])
-        time_diffs = gesture_data_sorted["frame"].diff().fillna(1) / avg_frame_rate
-        
-        # Calculate velocity (first derivative)
-        velocities = gesture_data_sorted[landmark_cols].diff().div(time_diffs, axis=0).fillna(0)
-        df.loc[gesture_data_sorted.index, velocity_cols] = velocities.values
+        rolling_dev =  gesture_data[cols].rolling(2).std().fillna(0)
+        rolling_var = gesture_data[cols].rolling(2).var()
+        rolling_skew = gesture_data[cols].rolling(6).skew()
+        rolling_kurt = gesture_data[cols].rolling(6).kurt()
+        cumulative_mean = gesture_data[cols].expanding().mean()
 
-        # Calculate acceleration (second derivative)
-        accelerations = velocities.diff().div(time_diffs, axis=0).fillna(0)
-        df.loc[gesture_data_sorted.index, acceleration_cols] = accelerations.values
-
-        # Calculate jerk (third derivative)
-        jerks = accelerations.diff().div(time_diffs, axis=0).fillna(0)
-        df.loc[gesture_data_sorted.index, jerk_cols] = jerks.values
+        df.loc[gesture_data.index, dev_cols] = rolling_dev.values
+        df.loc[gesture_data.index, var_cols] = rolling_var.values
+        df.loc[gesture_data.index, skew_cols] = rolling_skew.values
+        df.loc[gesture_data.index, kurt_cols] = rolling_kurt.values
+        df.loc[gesture_data.index, mean_cols] = cumulative_mean.values
 
     return df
 
-def calculate_landmark_distances(df: pd.DataFrame, landmark_cols: list):
-
-    landmark_pairs = list(combinations(landmark_cols, 2))
-    distance_columns = [f'distance_{idx1}_{idx2}' for idx1, idx2 in landmark_pairs]
-
-    # Preallocate memory for distance_data DataFrame
-    num_rows = len(df)
-    num_cols = len(distance_columns)
-    distance_data = pd.DataFrame(np.zeros((num_rows, num_cols)), columns=distance_columns)
-
-    i = 0
-    for _, gesture_data in df.groupby("gesture_index"):
-        print(f"done {i}")
-        i +=1
+def calculate_landmark_distances(df: pd.DataFrame, col: list):
+    
+    df_copy = df.copy()
+    landmark_pairs = list(combinations(col, 2))
+    
+    distance_cols = [f"distance_{idx1}_{idx2}" for idx1, idx2 in landmark_pairs]
+    new_columns = []
+    
+    for _, gesture_data in df_copy.groupby("gesture_index"):
         gesture_data = gesture_data.sort_values(by="frame")
+        gesture_distances = []
 
         for(col1, col2) in landmark_pairs:
             idx1 = col1[1:]
@@ -145,89 +153,54 @@ def calculate_landmark_distances(df: pd.DataFrame, landmark_cols: list):
 
             if all(pd.api.types.is_numeric_dtype(gesture_data[col]) for col in [x1, y1, z1, x2, y2, z2]): 
                 distances = np.sqrt((gesture_data[x1] - gesture_data[x2])**2 + (gesture_data[y1] - gesture_data[y2])**2 + (gesture_data[z1] - gesture_data[z2])**2)
-                distance_data.append(distances)
-
+            
             else:
                 raise ValueError("Landmark data types must be numeric for distance calculation")
 
-    # Concatenate distance columns with original DataFrame
-    df = pd.concat([df, distance_data], axis=1)
+            # Store distances in a list
+            gesture_distances.append(distances)
 
-    return df  
-
-def calculate_landmark_angles(df: pd.DataFrame, landmark_cols: list):
-    angles_per_gesture_list = [] 
-
-    for gesture_index, gesture_data in df.groupby("gesture_index"):
-        gesture_data = gesture_data.sort_values(by="frame")
-        gesture_points = gesture_data[landmark_cols].values# Calculate direction vectors between consecutive frames (we are using all the landmarks)
+        # Concatenate all distances into a DataFrame
+        gesture_distances_df = pd.DataFrame(np.array(gesture_distances).T, columns=distance_cols, index=gesture_data.index)
+        new_columns.append(gesture_distances_df)
         
-        gesture_vectors = np.diff(gesture_points, axis=0)
-
-        if gesture_vectors.shape[0] < 2:
-            continue
-
-        # Calculate dot product and magnitudes (assuming 3D points)
-        dot_products = np.sum(gesture_vectors[:-1] * gesture_vectors[1:], axis=1)
-        magnitude1 = np.linalg.norm(gesture_vectors[:-1], axis=1)
-        magnitude2 = np.linalg.norm(gesture_vectors[1:], axis=1)
-
-        # Avoid dividing by zero or near-zero values
-        mask = (magnitude1 > 1e-6) & (magnitude2 > 1e-6)
-        dot_products[mask] /= (magnitude1[mask] * magnitude2[mask])
-
-        # clip values stop prevent invalid input to arccos 
-        dot_products = np.clip(dot_products, -1.0, 1.0)
-
-        frame_angles = np.arccos(dot_products) * (180 / np.pi)
-
-        # create dictionary with angles for each gesture
-        angles_df = pd.DataFrame({
-            'gesture_index': gesture_index,
-            'frame': gesture_data['frame'].iloc[1:len(frame_angles)+1],  # Skip the first frame because diff reduces one row
-            'angle': frame_angles
-        })
-        angles_per_gesture_list.append(angles_df)
-
-    all_angles_df = pd.concat(angles_per_gesture_list, ignore_index=True)
-
-    # Merge the angles DataFrame back to the original DataFrame
-    df_with_angles = pd.merge(df, all_angles_df, on=['gesture_index', 'frame'], how='left')
-
-    return df_with_angles
-
-def calculate_gesture_stats(df: pd.DataFrame, landmark_cols: list): # NEED TO FIXX THIS
-    """
-    Calculates mean, variance, skewness, and kurtosis across frames for each landmark coordinate.
-    Args:
-        df (pd.DataFrame): The DataFrame containing gesture data with frame, gesture_index,
-                           gesture, and landmark coordinates (x, y, z) columns.
-        landmark_cols (list): A list of column names representing landmark coordinates.
-    Returns:
-        pd.DataFrame: The DataFrame with additional columns containing the calculated statistics
-                      for each landmark in each gesture.
-    """
-    stats_cols = [f"{stat}_{col}" for stat in ["mean", "var", "skew", "kurt"] for col in landmark_cols]
     
-    # Create an empty DataFrame to store statistics
-    stats_df = pd.DataFrame(columns=stats_cols)
-    
-    for gesture_index, gesture_data in df.groupby("gesture_index"):
+    df_copy = pd.concat([df_copy] + new_columns, axis=1)
+
+    return df_copy
+
+def calculate_landmark_angles(df: pd.DataFrame, cols: list):
+    angle_cols = [f"angle_{cols[i]}_{cols[i+1]}" for i in range(len(cols) - 1)]
+
+    for _, gesture_data in df.groupby("gesture_index"):
         gesture_data = gesture_data.sort_values(by="frame")
+        gesture_points = gesture_data[cols]
+
+        # print(gesture_points)
         
-        # Calculate statistics for each landmark coordinate
-        landmark_stats = {}
-        for col in landmark_cols:
-            landmark_stats[f"gesture_index"] = gesture_index
-            landmark_stats[f"mean_{col}"] = gesture_data[col].mean()
-            landmark_stats[f"var_{col}"] = gesture_data[col].var()
-            landmark_stats[f"skew_{col}"] = gesture_data[col].skew()
-            landmark_stats[f"kurt_{col}"] = gesture_data[col].kurt()
+        
+        a = gesture_points[[f"{v}_0" for v in ("x", "y", "z")]].iloc[0]
+        b = gesture_points[[f"{v}_0" for v in ("x", "y", "z")]].iloc[1]
+        
+        print(F"{a}\n\n{b}")
+       
+        dot_prod = np.sum((a * b))
+        print(dot_prod)
+        print()
 
-        # Append statistics as a row in the stats DataFrame
-        stats_df = stats_df._append(landmark_stats, ignore_index=True)
+        magnitude1 = np.linalg.norm(a)
+        magnitude2 = np.linalg.norm(b)
+      
+        print(magnitude1)
+        print(magnitude2)
+        
+        angle = np.arccos(dot_prod/(magnitude1 * magnitude2)) * (180 / np.pi) # radian to degrees
+        print(angle)
+        
+        
+        break      
 
-    return df.merge(stats_df, on=["gesture_index"], how="left")
+    return df
 
 
 def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
@@ -237,28 +210,23 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
         velocity ✅
         acceleration ✅
         jerk ✅
-        pairwise distances
+        pairwise distances ✅
         landmark angles
-        gesture_stats - mean, variance, skewness, and kurtosis
+        gesture_stats - mean, variance, skewness, and kurtosis ✅
     """
     df_copy = df.copy()
 
-    # df_elapsed = calculate_elapsed_time(df_copy)
-    # df_temporal_fe = calculate_temporal_features_per_gesture(df_copy, landmark_cols)
-    # df_pairwse_fe = calculate_landmark_distances(df_copy, landmark_cols)
-    # df_angles_fe = calculate_landmark_angles(df_copy, landmark_cols)
-    df_gesture_fe = calculate_gesture_stats(df_copy, landmark_cols)
+    # df_elapsed = calculate_elapsed_time(df_copy) 
+    # df_temporal = calculate_temporal_features(df_copy, landmark_cols)
+    # df_stats = calculate_temporal_stats(df_copy, landmark_cols)
+    # df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
 
+    df_angle = calculate_landmark_angles(df_copy, landmark_cols)
     # print(df_copy.columns.values.tolist())
-    # print(df_temporal_fe.columns.values.tolist())
-    # print(df_pairwse_fe.columns.values.tolist())
-    # print(df_angles_fe.columns.values.tolist())
-    print(df_gesture_fe.columns.values.tolist())
 
-    print(df_gesture_fe[["frame", "x_0", "y_0", "z_0", "kurt_x_0", "kurt_y_0", "kurt_z_0", "mean_x_0", "mean_y_0", "mean_z_0"]].head(20))
+   
 
-
-    return 0
+    return df_copy
 
 def main():
     input_dir = "data/data_2"
