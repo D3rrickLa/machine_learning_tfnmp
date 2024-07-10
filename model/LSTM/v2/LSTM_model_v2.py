@@ -170,36 +170,58 @@ def calculate_landmark_distances(df: pd.DataFrame, col: list):
     return df_copy
 
 def calculate_landmark_angles(df: pd.DataFrame, cols: list):
-    angle_cols = [f"angle_{cols[i]}_{cols[i+1]}" for i in range(len(cols) - 1)]
-
+    angles_per_gesture_list = []
     for _, gesture_data in df.groupby("gesture_index"):
         gesture_data = gesture_data.sort_values(by="frame")
         gesture_points = gesture_data[cols]
+        angles_for_gesture = []
 
-        # print(gesture_points)
         
-        
-        a = gesture_points[[f"{v}_0" for v in ("x", "y", "z")]].iloc[0]
-        b = gesture_points[[f"{v}_0" for v in ("x", "y", "z")]].iloc[1]
-        
-        print(F"{a}\n\n{b}")
-       
-        dot_prod = np.sum((a * b))
-        print(dot_prod)
-        print()
+        # Iterate over each pair of consecutive points
+        for i in range(len(gesture_points) - 1):
+            point_a = gesture_points.iloc[i]
+            point_b = gesture_points.iloc[i + 1]
 
-        magnitude1 = np.linalg.norm(a)
-        magnitude2 = np.linalg.norm(b)
-      
-        print(magnitude1)
-        print(magnitude2)
-        
-        angle = np.arccos(dot_prod/(magnitude1 * magnitude2)) * (180 / np.pi) # radian to degrees
-        print(angle)
+            angles = []
+            
+            # Iterate over each landmark
+            for j in range(len(cols)//3):
+                idx = j  # Adjust if cols include additional information beyond x, y, z (e.g., wx, wy, wz)
+                
+                # Extract coordinates for point_a and point_b
+                ax, ay, az = point_a[f"x_{idx}"], point_a[f"y_{idx}"], point_a[f"z_{idx}"]
+                bx, by, bz = point_b[f"x_{idx}"], point_b[f"y_{idx}"], point_b[f"z_{idx}"]
+
+                # Calculate dot product
+                dot_prod = ax * bx + ay * by + az * bz
+
+                # Calculate magnitudes
+                magnitude1 = np.linalg.norm([ax, ay, az])
+                magnitude2 = np.linalg.norm([bx, by, bz])
+
+                # Calculate angle in degrees
+                if magnitude1 > 0 and magnitude2 > 0:
+                    angle = np.arccos(np.clip(dot_prod / (magnitude1 * magnitude2), -1.0, 1.0)) * (180 / np.pi)
+                else:
+                    angle = 0.0  # Handle division by zero or near-zero magnitude cases
+
+                angles.append(angle)
+
+            angles_for_gesture.append(angles)
+
+        angles_per_gesture_list.extend(angles_for_gesture)
         
         
         break      
 
+    # Create DataFrame with angles_per_gesture_list
+    num_landmarks = len(cols) // 3
+    columns = [f"{dim}_{i}_{i+1}_angle" for dim in ["X", "Y", "Z"] for i in range(num_landmarks - 1)]
+    angles_df = pd.DataFrame(angles_per_gesture_list, columns=columns)
+
+
+    print(angles_df.head(20))
+    print(df["frame"].head(30))
     return df
 
 
