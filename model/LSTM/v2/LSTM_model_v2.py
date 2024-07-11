@@ -126,42 +126,37 @@ def calculate_temporal_stats(df: pd.DataFrame, cols: list):
 
     return df
 
-def calculate_landmark_distances(df: pd.DataFrame, col: list):
-    
-    df_copy = df.copy()
-    landmark_pairs = list(combinations(col, 2))
-    
-    distance_cols = [f"distance_{idx1}_{idx2}" for idx1, idx2 in landmark_pairs]
-    new_columns = []
-    
-    for _, gesture_data in df_copy.groupby("gesture_index"):
+def calculate_landmark_distances(df: pd.DataFrame, cols: list):
+
+    distance_list = []
+    for _, gesture_data in df.groupby("gesture_index"):
         gesture_data = gesture_data.sort_values(by="frame")
-        gesture_distances = []
 
-        for(col1, col2) in landmark_pairs:
-            idx1 = col1[1:]
-            idx2 = col2[1:]
+        if gesture_data["gesture_index"].unique() == 1720467225535680900:
+            continue
 
-            x1, y1, z1 = f'x{idx1}', f'y{idx1}', f'z{idx1}'
-            x2, y2, z2 = f'x{idx2}', f'y{idx2}', f'z{idx2}'
+        for n in range(len(gesture_data["frame"])): # problem is this we are assuming that 
+            temp = []
+            print(gesture_data.loc[gesture_data["frame"] == n]["x_0"].values.tolist()[0])
+            for i in range(21):
+                x1, y1, z1 = gesture_data[f"x_{i}"][n], gesture_data[f"y_{i}"][n], gesture_data[f"z_{i}"][n]
+                print(f"{x1}, {y1}, {z1} || coord(zyz): {i}, frame: {n}")
+                break
+                for j in range(21):
+                    if j == i:
+                        temp.append(0)
+                        continue
+                    x2, y2, z2 = gesture_data[f"x_{j}"][n], gesture_data[f"y_{j}"][n], gesture_data[f"z_{j}"][n]
 
-            if all(pd.api.types.is_numeric_dtype(gesture_data[col]) for col in [x1, y1, z1, x2, y2, z2]): 
-                distances = np.sqrt((gesture_data[x1] - gesture_data[x2])**2 + (gesture_data[y1] - gesture_data[y2])**2 + (gesture_data[z1] - gesture_data[z2])**2)
+                    # print(f"{x1}, {y1}, {z1} | {x2}, {y2}, {z2} || coord(zyz): {i} {j}, frame: {n}")   
+                    distance = np.sqrt(((x2 - x1)**2) + ((y2 - y1)**2) + ((z2 - z1)**2))
+                    temp.append(distance)
+                
+            # distance_list.append(temp)     
             
-            else:
-                raise ValueError("Landmark data types must be numeric for distance calculation")
-
-            # Store distances in a list
-            gesture_distances.append(distances)
-
-        # Concatenate all distances into a DataFrame
-        gesture_distances_df = pd.DataFrame(np.array(gesture_distances).T, columns=distance_cols, index=gesture_data.index)
-        new_columns.append(gesture_distances_df)
+            
         
-    
-    df_copy = pd.concat([df_copy] + new_columns, axis=1)
-
-    return df_copy
+    # print(len(distance_list))
 
 def calculate_landmark_angles(df: pd.DataFrame, cols: list):
     angles_per_gesture_list = []
@@ -240,11 +235,11 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     # df_elapsed = calculate_elapsed_time(df_copy) 
     # df_temporal = calculate_temporal_features(df_copy, landmark_cols)
     # df_stats = calculate_temporal_stats(df_copy, landmark_cols)
-   
+    t = time.process_time()
     df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
+    e = time.process_time() - t 
+    print(e)
     # df_angle = calculate_landmark_angles(df_copy, landmark_cols)
-
-    print(df_pairwise.isnull().sum())
 
     # df_combined = pd.concat([df_copy, df_pairwise, df_angle], axis=1)
     # Ensure there are no duplicate columns
