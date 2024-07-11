@@ -81,8 +81,7 @@ def calculate_elapsed_time(df: pd.DataFrame):
         avg_frame_rate = np.mean(gesture_data["frame_rate"])
 
         for i in gesture_data["frame"]:
-            elapsed_time = i / avg_frame_rate
-            elapsed_lists.append(elapsed_time)
+            elapsed_lists.append(i / avg_frame_rate)
         
     df['elapsed_time'] = elapsed_lists
 
@@ -119,17 +118,11 @@ def calculate_temporal_stats(df: pd.DataFrame, cols: list):
     for _, gesture_data in df.groupby("gesture_index"):
         gesture_data = gesture_data.sort_values(by="frame")
 
-        rolling_dev =  gesture_data[cols].rolling(2).std().fillna(0)
-        rolling_var = gesture_data[cols].rolling(2).var()
-        rolling_skew = gesture_data[cols].rolling(6).skew()
-        rolling_kurt = gesture_data[cols].rolling(6).kurt()
-        cumulative_mean = gesture_data[cols].expanding().mean()
-
-        df.loc[gesture_data.index, dev_cols] = rolling_dev.values
-        df.loc[gesture_data.index, var_cols] = rolling_var.values
-        df.loc[gesture_data.index, skew_cols] = rolling_skew.values
-        df.loc[gesture_data.index, kurt_cols] = rolling_kurt.values
-        df.loc[gesture_data.index, mean_cols] = cumulative_mean.values
+        df.loc[gesture_data.index, dev_cols] = gesture_data[cols].rolling(2).std(engine="cython").fillna(0).values
+        df.loc[gesture_data.index, var_cols] = gesture_data[cols].rolling(2).var(engine="cython").values
+        df.loc[gesture_data.index, skew_cols] = gesture_data[cols].rolling(6).skew().values
+        df.loc[gesture_data.index, kurt_cols] = gesture_data[cols].rolling(6).kurt().values
+        df.loc[gesture_data.index, mean_cols] = gesture_data[cols].expanding().mean(engine="cython").values
 
     return df
 
@@ -221,7 +214,6 @@ def calculate_landmark_angles(df: pd.DataFrame, cols: list):
 
     return df
 
-
 def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     """
     List of features
@@ -235,27 +227,37 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
 
         process time
             elapsed_time_fuc - 0.15625
-            temp_distance - 6.671875
+            temporal - 6.671875
             stats - 24.1875
+            landmarks - 85.421875
+            angles - 4.265625
+
+        problems to hand - skew, kurt, and variance have null values - because of the lack of fillna. Skew and kurt are bigger problems cuz of rolling
+        distance is just not being calculated 
     """
     df_copy = df.copy()
- 
+
     # df_elapsed = calculate_elapsed_time(df_copy) 
     # df_temporal = calculate_temporal_features(df_copy, landmark_cols)
-
-    s = time.process_time()
-    df_stats = calculate_temporal_stats(df_copy, landmark_cols)
-    end = time.process_time() - s 
-    print(end)
-
-    # df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
+    # df_stats = calculate_temporal_stats(df_copy, landmark_cols)
+   
+    df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
     # df_angle = calculate_landmark_angles(df_copy, landmark_cols)
 
-    # print(df_copy.columns.values.tolist())
+    print(df_pairwise.isnull().sum())
 
+    # df_combined = pd.concat([df_copy, df_pairwise, df_angle], axis=1)
+    # Ensure there are no duplicate columns
+    # df_combined = df_combined.loc[:,~df_combined.columns.duplicated()]
    
+    # return df_combined
 
-    return df_copy
+def display_null_columns(df: pd.DataFrame):
+    null_counts = df.isnull().sum()
+    null_columns = null_counts[null_counts > 0]
+    
+    result_df = pd.DataFrame({'Column': null_columns.index, 'Null Count': null_columns.values})
+    return result_df
 
 def main():
     input_dir = "data/data_2"
@@ -267,6 +269,22 @@ def main():
     X_train, y_train, X_val, y_val, X_test, y_test = split_dataset(dataframe, "gesture")
 
     # Step 3: Feature Engineer
-    X_train_fe = calculate_hand_motion_features(X_train, landmark_cols)
+    isActive = False
+    if os.path.exists("model/LSTM/v2/X_train_fe.csv") and isActive == True:
+        X_train_fe = pd.read_csv("model/LSTM/v2/X_train_fe.csv")
+        X_val_fe = pd.read_csv("model/LSTM/v2/X_val_fe.csv")
+        X_test_fe = pd.read_csv("model/LSTM/v2/X_test_fe.csv")
+        print("imported")
+    else:
+        X_train_fe = calculate_hand_motion_features(X_train, landmark_cols)
+        # X_val_fe = calculate_hand_motion_features(X_val, landmark_cols)
+        # X_test_fe = calculate_hand_motion_features(X_test, landmark_cols)
+
+        # X_train_fe.to_csv("model/LSTM/v2/X_train_fe.csv", index=False)
+        # X_val_fe.to_csv("model/LSTM/v2/X_val_fe.csv", index=False)
+        # X_test_fe.to_csv("model/LSTM/v2/X_test_fe.csv", index=False)
+
+    # Preprocessing 
+    # need to have numeric, cat, and ordinal cols
 
 main()
