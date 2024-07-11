@@ -128,29 +128,34 @@ def calculate_temporal_stats(df: pd.DataFrame, cols: list):
 
 def calculate_landmark_distances(df: pd.DataFrame, cols: list):
 
-    distance_list = []
+    distance_columns = [f"lm_distance_{i}_{j}" for i in range(len(cols)//3) for j in range(len(cols)//3)]
+    df = df.copy()
+    df = pd.concat([df, pd.DataFrame([range(len(distance_columns))], columns=distance_columns, index=df.index)])
+
     for _, gesture_data in df.groupby("gesture_index"):
         gesture_data = gesture_data.sort_values(by="frame")
 
         for n in range(len(gesture_data["frame"])):
-     
+            frame_data = gesture_data.loc[gesture_data["frame"] == n]
             temp = []
-            for i in range(21):
-                x1, y1, z1 = gesture_data.loc[gesture_data["frame"] == n][f"x_{i}"].values.tolist()[0], gesture_data.loc[gesture_data["frame"] == n][f"y_{i}"].values.tolist()[0], gesture_data.loc[gesture_data["frame"] == n][f"z_{i}"].values.tolist()[0]
+            for i in range(len(cols)//3):
+                x1, y1, z1 = frame_data[f"x_{i}"].values.tolist()[0], frame_data[f"y_{i}"].values.tolist()[0], frame_data[f"z_{i}"].values.tolist()[0]
                 # print(f"{x1}, {y1}, {z1} || coord(zyz): {i}, frame: {n}")
                
-                for j in range(21):
+                for j in range(len(cols)//3):
                     if j == i:
                         temp.append(0)
                         continue
-                    x2, y2, z2 = gesture_data.loc[gesture_data["frame"] == n][f"x_{j}"].values.tolist()[0], gesture_data.loc[gesture_data["frame"] == n][f"y_{j}"].values.tolist()[0], gesture_data.loc[gesture_data["frame"] == n][f"z_{j}"].values.tolist()[0]
+                    x2, y2, z2 = frame_data[f"x_{j}"].values.tolist()[0], frame_data[f"y_{j}"].values.tolist()[0], frame_data[f"z_{j}"].values.tolist()[0]
 
                     # print(f"{x1}, {y1}, {z1} | {x2}, {y2}, {z2} || coord(zyz): {i} {j}, frame: {n}")   
                     distance = np.sqrt(((x2 - x1)**2) + ((y2 - y1)**2) + ((z2 - z1)**2))
                     temp.append(distance)
+            
+            # Assign the calculated distances to the respective columns in the original DataFrame
+            for k, col in enumerate(distance_columns):
+                df.loc[(df["gesture_index"] == frame_data["gesture_index"].values[0]) & (df["frame"] == n), col] = temp[k]
                 
-            distance_list.append(temp)     
-        break
 
 
 
@@ -231,13 +236,15 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     df_copy = df.copy()
 
     df_elapsed = calculate_elapsed_time(df_copy) 
-    print(df_copy.columns.values.tolist())
+   
     # df_temporal = calculate_temporal_features(df_copy, landmark_cols)
     # df_stats = calculate_temporal_stats(df_copy, landmark_cols)
    
-
+    s = time.process_time()
     df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
-    # print(df_copy.columns.values.tolist())
+    print(time.process_time()-s)
+    print(df_pairwise.columns.values.tolist())
+    
     # df_angle = calculate_landmark_angles(df_copy, landmark_cols)
 
     # df_combined = pd.concat([df_copy, df_pairwise, df_angle], axis=1)
