@@ -132,31 +132,29 @@ def calculate_landmark_distances(df: pd.DataFrame, cols: list):
     for _, gesture_data in df.groupby("gesture_index"):
         gesture_data = gesture_data.sort_values(by="frame")
 
-        if gesture_data["gesture_index"].unique() == 1720467225535680900:
-            continue
-
-        for n in range(len(gesture_data["frame"])): # problem is this we are assuming that 
+        for n in range(len(gesture_data["frame"])):
+     
             temp = []
-            print(gesture_data.loc[gesture_data["frame"] == n]["x_0"].values.tolist()[0])
             for i in range(21):
-                x1, y1, z1 = gesture_data[f"x_{i}"][n], gesture_data[f"y_{i}"][n], gesture_data[f"z_{i}"][n]
-                print(f"{x1}, {y1}, {z1} || coord(zyz): {i}, frame: {n}")
-                break
+                x1, y1, z1 = gesture_data.loc[gesture_data["frame"] == n][f"x_{i}"].values.tolist()[0], gesture_data.loc[gesture_data["frame"] == n][f"y_{i}"].values.tolist()[0], gesture_data.loc[gesture_data["frame"] == n][f"z_{i}"].values.tolist()[0]
+                # print(f"{x1}, {y1}, {z1} || coord(zyz): {i}, frame: {n}")
+               
                 for j in range(21):
                     if j == i:
                         temp.append(0)
                         continue
-                    x2, y2, z2 = gesture_data[f"x_{j}"][n], gesture_data[f"y_{j}"][n], gesture_data[f"z_{j}"][n]
+                    x2, y2, z2 = gesture_data.loc[gesture_data["frame"] == n][f"x_{j}"].values.tolist()[0], gesture_data.loc[gesture_data["frame"] == n][f"y_{j}"].values.tolist()[0], gesture_data.loc[gesture_data["frame"] == n][f"z_{j}"].values.tolist()[0]
 
                     # print(f"{x1}, {y1}, {z1} | {x2}, {y2}, {z2} || coord(zyz): {i} {j}, frame: {n}")   
                     distance = np.sqrt(((x2 - x1)**2) + ((y2 - y1)**2) + ((z2 - z1)**2))
                     temp.append(distance)
                 
-            # distance_list.append(temp)     
-            
-            
-        
-    # print(len(distance_list))
+            distance_list.append(temp)     
+        break
+
+
+
+    return df
 
 def calculate_landmark_angles(df: pd.DataFrame, cols: list):
     angles_per_gesture_list = []
@@ -232,13 +230,14 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     """
     df_copy = df.copy()
 
-    # df_elapsed = calculate_elapsed_time(df_copy) 
+    df_elapsed = calculate_elapsed_time(df_copy) 
+    print(df_copy.columns.values.tolist())
     # df_temporal = calculate_temporal_features(df_copy, landmark_cols)
     # df_stats = calculate_temporal_stats(df_copy, landmark_cols)
-    t = time.process_time()
+   
+
     df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
-    e = time.process_time() - t 
-    print(e)
+    # print(df_copy.columns.values.tolist())
     # df_angle = calculate_landmark_angles(df_copy, landmark_cols)
 
     # df_combined = pd.concat([df_copy, df_pairwise, df_angle], axis=1)
