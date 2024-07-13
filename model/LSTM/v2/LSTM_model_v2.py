@@ -4,10 +4,27 @@ import os
 import sys
 import time
 
+from keras._tf_keras.keras.callbacks import EarlyStopping 
+from keras._tf_keras.keras.models import Sequential
+from keras._tf_keras.keras.layers import LSTM, Dense, Dropout
+from keras._tf_keras.keras.regularizers import l2
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy
+from scipy.sparse import csr_matrix
 from scipy.stats import skew, kurtosis
+from sklearn.calibration import LabelEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.decomposition import PCA
+from sklearn.discriminant_analysis import StandardScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.feature_selection import SelectFromModel
+from sklearn.impute import IterativeImputer, KNNImputer, SimpleImputer
+from sklearn.linear_model import Lasso
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
 def create_dataframe_from_data(input_path: str):
     data_frames = []
@@ -119,7 +136,7 @@ def calculate_temporal_stats(df: pd.DataFrame, cols: list):
     for _, gesture_data in df.groupby("gesture_index"):
         gesture_data = gesture_data.sort_values(by="frame")
 
-        df.loc[gesture_data.index, dev_cols] = gesture_data[cols].rolling(2).std(engine="cython").fillna(0).values
+        df.loc[gesture_data.index, dev_cols] = gesture_data[cols].rolling(2).std(engine="cython").values # might convert these to numpy for better efificeny in the future
         df.loc[gesture_data.index, var_cols] = gesture_data[cols].rolling(2).var(engine="cython").values
         df.loc[gesture_data.index, skew_cols] = gesture_data[cols].rolling(6).skew().values
         df.loc[gesture_data.index, kurt_cols] = gesture_data[cols].rolling(6).kurt().values
@@ -137,36 +154,9 @@ def calculate_landmark_distances(df: pd.DataFrame, cols: list):
         distances = np.sqrt(np.sum((coords[:, :, None] - coords[:, None, :])**2, axis=-1))
         
         # we technically should do something called zero out - basically in the df x_0/x_1 == x_1/x_0 (redundant)
+
         distances_flat = distances.reshape(-1, len(distance_columns))
         df.loc[gesture_data.index, distance_columns] = distances_flat
-
-
-
-
-        # for n in range(len(gesture_data["frame"])):
-        #     frame_data = gesture_data.loc[gesture_data["frame"] == n]
-        #     temp = []
-        #     for i in range(len(cols)//3):
-        #         x1, y1, z1 = frame_data[f"x_{i}"].values.tolist()[0], frame_data[f"y_{i}"].values.tolist()[0], frame_data[f"z_{i}"].values.tolist()[0]
-        #         # print(f"{x1}, {y1}, {z1} || coord(zyz): {i}, frame: {n}")
-               
-        #         for j in range(len(cols)//3):
-        #             if j == i:
-        #                 temp.append(0)
-        #                 continue
-        #             x2, y2, z2 = frame_data[f"x_{j}"].values.tolist()[0], frame_data[f"y_{j}"].values.tolist()[0], frame_data[f"z_{j}"].values.tolist()[0]
-
-        #             # print(f"{x1}, {y1}, {z1} | {x2}, {y2}, {z2} || coord(zyz): {i} {j}, frame: {n}")   
-        #             distance = np.sqrt(((x2 - x1)**2) + ((y2 - y1)**2) + ((z2 - z1)**2))
-        #             temp.append(distance)
-            
-        #     # Assign the calculated distances to the respective columns in the original DataFrame
-        #     for k, col in enumerate(distance_columns):
-        #         df.loc[(df["gesture_index"] == frame_data["gesture_index"].values[0]) & (df["frame"] == n), col] = temp[k]            
-                
-            # distances_df = distances_df._append(pd.Series(temp + [frame_data["gesture_index"].values[0], n], index=distances_df.columns), ignore_index=True)
-
-
 
     return df
 
@@ -236,31 +226,46 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
             elapsed_time_fuc - 0.15625
             temporal - 6.671875
             stats - 24.1875
-            landmarks - 85.421875
+            landmarks - 85.421875 -> 32.203125 (more like 60 if running all functions)
             angles - 4.265625
 
-        problems to hand - skew, kurt, and variance have null values - because of the lack of fillna. Skew and kurt are bigger problems cuz of rolling
-        distance is just not being calculated 
+        problems to hand - skew, kurt, and variance have null values - because of the lack of fillna. Skew and kurt are bigger problems cuz of rolling (will use interpolation for this and others)
+        distance is just not being calculated  ✅
     """
     df_copy = df.copy()
 
-    df_elapsed = calculate_elapsed_time(df_copy) 
-   
-    # df_temporal = calculate_temporal_features(df_copy, landmark_cols)
-    # df_stats = calculate_temporal_stats(df_copy, landmark_cols)
-   
+    s = time.process_time()
+    df_elapsed = calculate_elapsed_time(df_copy)    
+    print(time.process_time()-s)
+
+
+    s = time.process_time()
+    df_temporal = calculate_temporal_features(df_copy, landmark_cols)
+    print(time.process_time()-s)
+    
+    s = time.process_time()
+    df_stats = calculate_temporal_stats(df_copy, landmark_cols)
+    print(time.process_time()-s)
+
+
     s = time.process_time()
     df_pairwise = calculate_landmark_distances(df_copy, landmark_cols)
     print(time.process_time()-s)
-    # print(df_pairwise.columns.values.tolist())
-    
-    # df_angle = calculate_landmark_angles(df_copy, landmark_cols)
 
-    # df_combined = pd.concat([df_copy, df_pairwise, df_angle], axis=1)
-    # Ensure there are no duplicate columns
-    # df_combined = df_combined.loc[:,~df_combined.columns.duplicated()]
+
+    s = time.process_time()
+    df_angle = calculate_landmark_angles(df_copy, landmark_cols)
+    print(time.process_time()-s)
    
-    # return df_combined
+    
+    s = time.process_time()
+    df_combined = pd.concat([df_copy, df_angle], axis=1)
+    print(time.process_time()-s)
+    
+    # Ensure there are no duplicate columns
+    df_combined = df_combined.loc[:,~df_combined.columns.duplicated()]
+   
+    return df_combined
 
 def display_null_columns(df: pd.DataFrame):
     null_counts = df.isnull().sum()
@@ -279,7 +284,7 @@ def main():
     X_train, y_train, X_val, y_val, X_test, y_test = split_dataset(dataframe, "gesture")
 
     # Step 3: Feature Engineer
-    isActive = False
+    isActive = True
     if os.path.exists("model/LSTM/v2/X_train_fe.csv") and isActive == True:
         X_train_fe = pd.read_csv("model/LSTM/v2/X_train_fe.csv")
         X_val_fe = pd.read_csv("model/LSTM/v2/X_val_fe.csv")
@@ -287,14 +292,112 @@ def main():
         print("imported")
     else:
         X_train_fe = calculate_hand_motion_features(X_train, landmark_cols)
-        # X_val_fe = calculate_hand_motion_features(X_val, landmark_cols)
-        # X_test_fe = calculate_hand_motion_features(X_test, landmark_cols)
+        X_val_fe = calculate_hand_motion_features(X_val, landmark_cols)
+        X_test_fe = calculate_hand_motion_features(X_test, landmark_cols)
 
-        # X_train_fe.to_csv("model/LSTM/v2/X_train_fe.csv", index=False)
-        # X_val_fe.to_csv("model/LSTM/v2/X_val_fe.csv", index=False)
-        # X_test_fe.to_csv("model/LSTM/v2/X_test_fe.csv", index=False)
+        X_train_fe.to_csv("model/LSTM/v2/X_train_fe.csv", index=False)
+        X_val_fe.to_csv("model/LSTM/v2/X_val_fe.csv", index=False)
+        X_test_fe.to_csv("model/LSTM/v2/X_test_fe.csv", index=False)
 
     # Preprocessing 
     # need to have numeric, cat, and ordinal cols
+    timeseries_columns = (
+        landmark_cols + landmark_world_cols + ['elapsed_time'] + [f"velocity_{col}" for col in landmark_cols] + [f"acceleration_{col}" for col in landmark_cols] 
+        + [f"jerk_{col}" for col in landmark_cols]+ [f"mean_{col}" for col in landmark_cols] + [f"variance_{col}" for col in landmark_cols] 
+        + [f"deviation_{col}" for col in landmark_cols] + [f"skew_{col}" for col in landmark_cols] + [f"kurt_{col}" for col in landmark_cols] 
+        + [f"lm_distance_{i}_{j}" for i in range(len(landmark_cols)//3) for j in range(len(landmark_cols)//3)] + [f"angle_{n1}" for n1 in range(21)] + ["score"]
+    )
+    print(f"{X_train_fe.shape}||{X_val_fe.shape}||{X_test_fe.shape}")
+
+    numerical_columns = ["frame_rate","frame_width","frame_height","gesture_index"]
+    categorical_columns = ['hand', 'gesture_index']
+    
+    ts_numerical_transformer = Pipeline(steps=[
+        ('imputer', KNNImputer(n_neighbors=5)),
+        ('imputer2', SimpleImputer(strategy="mean")),
+        ('scaler', MinMaxScaler()),
+    ])
+
+    numerical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy="mean")),
+        ("normalize", StandardScaler())
+    ])
+
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy="most_frequent")),
+        ("ohe", OneHotEncoder())
+    ])
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('ts_num', ts_numerical_transformer, timeseries_columns),
+            ('num', numerical_transformer, numerical_columns),
+            ('cat', categorical_transformer, categorical_columns)
+        ],
+        remainder='passthrough',
+        sparse_threshold=0,
+        n_jobs=-1
+    )
+    # preprocessor.set_output(transform="pandas")
+    
+    X_train_transformed = preprocessor.fit_transform(X_train_fe)
+    X_val_transformed = preprocessor.transform(X_val_fe)
+    X_test_transformed = preprocessor.transform(X_test_fe)
+    print("done")
+    label_encoder = LabelEncoder()
+    combined_labels = pd.concat([y_train, y_val, y_test])
+    label_encoder.fit(combined_labels)
+
+    y_train_encoded = label_encoder.transform(y_train)
+    y_val_encoded = label_encoder.transform(y_val)
+    y_test_encoded = label_encoder.transform(y_test)
+   
+    print(f"{X_train_transformed.shape}||{X_val_transformed.shape}||{X_test_transformed.shape}")
+    print(f"{y_train_encoded.shape}||{y_val_encoded.shape}||{y_test_encoded.shape}")
+
+    lasso = Lasso(alpha=0.1)
+    lasso.fit(X_train_transformed, y_train_encoded)
+    model_1 = SelectFromModel(lasso, prefit=True)
+
+    X_train_transformed = model_1.transform(X_train_transformed)
+    X_val_transformed = model_1.transform(X_val_transformed)
+    X_test_transformed = model_1.transform(X_test_transformed)
+
+    print("Selected features (Lasso):", model_1.get_support(indices=True))
+
+    # Reshape the selected features for LSTM input
+    X_train_reshaped = X_train_transformed.reshape((X_train_transformed.shape[0], X_train_transformed.shape[1], 1))
+    X_val_reshaped = X_val_transformed.reshape((X_val_transformed.shape[0], X_val_transformed.shape[1], 1))
+    X_test_reshaped = X_test_transformed.reshape((X_test_transformed.shape[0], X_test_transformed.shape[1], 1))
+
+    print(f"{X_train_transformed.shape}||{X_val_transformed.shape}||{X_test_transformed.shape}")
+    print(f"{y_train_encoded.shape}||{y_val_encoded.shape}||{y_test_encoded.shape}")
+
+    # Define LSTM model
+    model = Sequential()
+    model.add(LSTM(units=64, input_shape=(X_train_transformed.shape[1], 1), return_sequences=True, kernel_regularizer=l2()))
+    model.add(Dropout(0.2))
+    model.add(LSTM(units=8, return_sequences=False)),  # Optional additional LSTM layer
+    model.add(Dense(units=len(label_encoder.classes_), activation='softmax'))
+
+
+    # Compile the model
+    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+        # Train the model
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    history = model.fit(
+        X_train_reshaped, y_train_encoded, 
+        epochs=10, 
+        batch_size=32,
+        validation_data=(X_val_reshaped, y_val_encoded), 
+        callbacks=[early_stopping])
+
+    # Evaluate the model on test set
+    test_loss, test_acc = model.evaluate(X_test_reshaped, y_test_encoded)
+    print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
+
+
+        
 
 main()
