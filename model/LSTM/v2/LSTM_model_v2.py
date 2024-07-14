@@ -3,8 +3,11 @@ from itertools import combinations
 import os
 import sys
 import time
+from typing import Optional
 
-from keras._tf_keras.keras.callbacks import EarlyStopping 
+from imblearn.over_sampling import SMOTE
+from keras._tf_keras.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from keras._tf_keras.keras.metrics import MeanAbsoluteError, Accuracy
 from keras._tf_keras.keras.models import Sequential
 from keras._tf_keras.keras.layers import LSTM, Dense, Dropout
 from keras._tf_keras.keras.regularizers import l2
@@ -274,6 +277,10 @@ def display_null_columns(df: pd.DataFrame):
     result_df = pd.DataFrame({'Column': null_columns.index, 'Null Count': null_columns.values})
     return result_df
 
+def reshape_for_lstm(X, num_timesteps):
+    num_samples = X.shape[0]
+    return X.reshape(num_samples, num_timesteps, -1) # Reshape the data to (num_samples, num_timesteps, num_features)
+
 def main():
     input_dir = "data/data_2"
 
@@ -299,23 +306,85 @@ def main():
         X_val_fe.to_csv("model/LSTM/v2/X_val_fe.csv", index=False)
         X_test_fe.to_csv("model/LSTM/v2/X_test_fe.csv", index=False)
 
-    # Preprocessing 
-    # need to have numeric, cat, and ordinal cols
-    timeseries_columns = (
-        landmark_cols + landmark_world_cols + ['elapsed_time'] + [f"velocity_{col}" for col in landmark_cols] + [f"acceleration_{col}" for col in landmark_cols] 
-        + [f"jerk_{col}" for col in landmark_cols]+ [f"mean_{col}" for col in landmark_cols] + [f"variance_{col}" for col in landmark_cols] 
-        + [f"deviation_{col}" for col in landmark_cols] + [f"skew_{col}" for col in landmark_cols] + [f"kurt_{col}" for col in landmark_cols] 
-        + [f"lm_distance_{i}_{j}" for i in range(len(landmark_cols)//3) for j in range(len(landmark_cols)//3)] + [f"angle_{n1}" for n1 in range(21)] + ["score"]
-    )
-    print(f"{X_train_fe.shape}||{X_val_fe.shape}||{X_test_fe.shape}")
-
+    print_shapes(X_train_fe, X_val_fe, X_test_fe)
+    
+    # Step 4: Preprocessing 
     numerical_columns = ["frame_rate","frame_width","frame_height","gesture_index"]
     categorical_columns = ['hand', 'gesture_index']
     
+    derived_features = ['elapsed_time'] + \
+                [f"{feat}_{col}" for feat in ["velocity", "acceleration", "jerk", "mean", "variance", "deviation", "skew", "kurt"] for col in landmark_cols] + \
+                [f"lm_distance_{i}_{j}" for i in range(len(landmark_cols)//3) for j in range(len(landmark_cols)//3)] + \
+                [f"angle_{n1}" for n1 in range(21)] + \
+                ["score"]
+    timeseries_columns = landmark_cols + landmark_world_cols + derived_features
+
+    preprocessor = preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns)
+    
+    X_train_transformed = preprocessor.fit_transform(X_train_fe)
+    X_val_transformed = preprocessor.transform(X_val_fe)
+    X_test_transformed = preprocessor.transform(X_test_fe)
+    print("done")
+
+    label_encoder = LabelEncoder()
+    combined_labels = pd.concat([y_train, y_val, y_test])
+    label_encoder.fit(combined_labels)
+
+    y_train_encoded = label_encoder.transform(y_train)
+    y_val_encoded = label_encoder.transform(y_val)
+    y_test_encoded = label_encoder.transform(y_test)
+   
+    print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train_encoded, y_val_encoded, y_test_encoded)
+
+    lasso = Lasso(alpha=0.1)
+    lasso.fit(X_train_transformed, y_train_encoded)
+    model_1 = SelectFromModel(lasso, prefit=True)
+
+    X_train_transformed = model_1.transform(X_train_transformed)
+    X_val_transformed = model_1.transform(X_val_transformed)
+    X_test_transformed = model_1.transform(X_test_transformed)
+
+    print("Selected features (Lasso):", model_1.get_support(indices=True))
+
+    # Reshape the selected features for LSTM input
+    X_train_reshaped = reshape_for_lstm(X_train_transformed, X_train_transformed.shape[1])
+    X_val_reshaped = reshape_for_lstm(X_val_transformed, X_val_transformed.shape[1])
+    X_test_reshaped = reshape_for_lstm(X_test_transformed, X_test_transformed.shape[1])
+
+    print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train_encoded, y_val_encoded, y_test_encoded)
+
+    # Define LSTM model
+    model = Sequential()
+    model.add(LSTM(units=64, input_shape=(X_train_transformed.shape[1], 1), return_sequences=True, kernel_regularizer=l2()))
+    model.add(Dropout(0.2))
+    model.add(LSTM(units=8, return_sequences=False)),  # Optional additional LSTM layer
+    model.add(Dropout(0.2))
+    model.add(Dense(units=len(label_encoder.classes_), activation='softmax'))
+
+
+    # Compile the model
+    model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
+
+        # Train the model
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=0.001)
+
+    history = model.fit(
+        X_train_reshaped, y_train_encoded, 
+        epochs=50, 
+        batch_size=32,
+        validation_data=(X_val_reshaped, y_val_encoded), 
+        callbacks=[early_stopping, reduce_lr])
+
+    # Evaluate the model on test set
+    test_loss, test_acc = model.evaluate(X_test_reshaped, y_test_encoded)
+    print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
+
+def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns):
     ts_numerical_transformer = Pipeline(steps=[
-        ('imputer', KNNImputer(n_neighbors=5)),
+        ('imputer', KNNImputer(n_neighbors=5)), # might want to change this out back to the interpolatioon methods
         ('imputer2', SimpleImputer(strategy="mean")),
-        ('scaler', MinMaxScaler()),
+        ('scaler', MinMaxScaler())
     ])
 
     numerical_transformer = Pipeline(steps=[
@@ -324,7 +393,7 @@ def main():
     ])
 
     categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy="most_frequent")),
+        ('imputer', SimpleImputer(strategy="most_frequent")), # technically this is wrong
         ("ohe", OneHotEncoder())
     ])
 
@@ -338,64 +407,13 @@ def main():
         sparse_threshold=0,
         n_jobs=-1
     )
-    # preprocessor.set_output(transform="pandas")
     
-    X_train_transformed = preprocessor.fit_transform(X_train_fe)
-    X_val_transformed = preprocessor.transform(X_val_fe)
-    X_test_transformed = preprocessor.transform(X_test_fe)
-    print("done")
-    label_encoder = LabelEncoder()
-    combined_labels = pd.concat([y_train, y_val, y_test])
-    label_encoder.fit(combined_labels)
+    return preprocessor
 
-    y_train_encoded = label_encoder.transform(y_train)
-    y_val_encoded = label_encoder.transform(y_val)
-    y_test_encoded = label_encoder.transform(y_test)
-   
-    print(f"{X_train_transformed.shape}||{X_val_transformed.shape}||{X_test_transformed.shape}")
-    print(f"{y_train_encoded.shape}||{y_val_encoded.shape}||{y_test_encoded.shape}")
-
-    lasso = Lasso(alpha=0.1)
-    lasso.fit(X_train_transformed, y_train_encoded)
-    model_1 = SelectFromModel(lasso, prefit=True)
-
-    X_train_transformed = model_1.transform(X_train_transformed)
-    X_val_transformed = model_1.transform(X_val_transformed)
-    X_test_transformed = model_1.transform(X_test_transformed)
-
-    print("Selected features (Lasso):", model_1.get_support(indices=True))
-
-    # Reshape the selected features for LSTM input
-    X_train_reshaped = X_train_transformed.reshape((X_train_transformed.shape[0], X_train_transformed.shape[1], 1))
-    X_val_reshaped = X_val_transformed.reshape((X_val_transformed.shape[0], X_val_transformed.shape[1], 1))
-    X_test_reshaped = X_test_transformed.reshape((X_test_transformed.shape[0], X_test_transformed.shape[1], 1))
-
-    print(f"{X_train_transformed.shape}||{X_val_transformed.shape}||{X_test_transformed.shape}")
-    print(f"{y_train_encoded.shape}||{y_val_encoded.shape}||{y_test_encoded.shape}")
-
-    # Define LSTM model
-    model = Sequential()
-    model.add(LSTM(units=64, input_shape=(X_train_transformed.shape[1], 1), return_sequences=True, kernel_regularizer=l2()))
-    model.add(Dropout(0.2))
-    model.add(LSTM(units=8, return_sequences=False)),  # Optional additional LSTM layer
-    model.add(Dense(units=len(label_encoder.classes_), activation='softmax'))
-
-
-    # Compile the model
-    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-
-        # Train the model
-    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-    history = model.fit(
-        X_train_reshaped, y_train_encoded, 
-        epochs=10, 
-        batch_size=32,
-        validation_data=(X_val_reshaped, y_val_encoded), 
-        callbacks=[early_stopping])
-
-    # Evaluate the model on test set
-    test_loss, test_acc = model.evaluate(X_test_reshaped, y_test_encoded)
-    print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
+def print_shapes(X_train, X_val, X_test, y_train = None, y_val = None, y_test = None):
+    print(f"{X_train.shape}||{X_val.shape}||{X_test.shape}")
+    if y_train is not None and y_val is not None and y_test is not None:
+        print(f"{y_train.shape} || {y_val.shape} || {y_test.shape}")
 
 
         
