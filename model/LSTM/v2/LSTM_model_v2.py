@@ -280,9 +280,8 @@ def display_null_columns(df: pd.DataFrame):
     result_df = pd.DataFrame({'Column': null_columns.index, 'Null Count': null_columns.values})
     return result_df
 
-def reshape_for_lstm(X, num_timesteps):
-    num_samples = X.shape[0]
-    return X.reshape(num_samples, num_timesteps, -1) # Reshape the data to (num_samples, num_timesteps, num_features)
+def reshape_for_lstm(data):
+    return data.reshape((data.shape[0], data.shape[1], 1)) 
 
 def main():
     input_dir = "data/data_2"
@@ -308,8 +307,6 @@ def main():
         X_train_fe.to_csv("model/LSTM/v2/X_train_fe.csv", index=False)
         X_val_fe.to_csv("model/LSTM/v2/X_val_fe.csv", index=False)
         X_test_fe.to_csv("model/LSTM/v2/X_test_fe.csv", index=False)
-
-    print_shapes(X_train_fe, X_val_fe, X_test_fe)
     
     # Step 4: Preprocessing 
     numerical_columns = ["frame_rate","frame_width","frame_height","gesture_index"]
@@ -327,7 +324,6 @@ def main():
     X_train_transformed = preprocessor.fit_transform(X_train_fe)
     X_val_transformed = preprocessor.transform(X_val_fe)
     X_test_transformed = preprocessor.transform(X_test_fe)
-    print("done")
 
     label_encoder = LabelEncoder()
     combined_labels = pd.concat([y_train, y_val, y_test])
@@ -337,29 +333,27 @@ def main():
     y_val_encoded = label_encoder.transform(y_val)
     y_test_encoded = label_encoder.transform(y_test)
    
-    print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train_encoded, y_val_encoded, y_test_encoded)
+    # lasso = Lasso(alpha=0.1)
+    # lasso.fit(X_train_transformed, y_train_encoded)
+    # model_1 = SelectFromModel(lasso, prefit=True)
 
-    lasso = Lasso(alpha=0.1)
-    lasso.fit(X_train_transformed, y_train_encoded)
-    model_1 = SelectFromModel(lasso, prefit=True)
+    # X_train_transformed = model_1.transform(X_train_transformed)
+    # X_val_transformed = model_1.transform(X_val_transformed)
+    # X_test_transformed = model_1.transform(X_test_transformed)
 
-    X_train_transformed = model_1.transform(X_train_transformed)
-    X_val_transformed = model_1.transform(X_val_transformed)
-    X_test_transformed = model_1.transform(X_test_transformed)
-
-    print("Selected features (Lasso):", model_1.get_support(indices=True))
+    # print("Selected features (Lasso):", model_1.get_support(indices=True))
 
     # Reshape the selected features for LSTM input
-    X_train_reshaped = reshape_for_lstm(X_train_transformed, X_train_transformed.shape[1])
-    X_val_reshaped = reshape_for_lstm(X_val_transformed, X_val_transformed.shape[1])
-    X_test_reshaped = reshape_for_lstm(X_test_transformed, X_test_transformed.shape[1])
+    X_train_reshaped = reshape_for_lstm(X_train_transformed)
+    X_val_reshaped = reshape_for_lstm(X_val_transformed)
+    X_test_reshaped = reshape_for_lstm(X_test_transformed)
 
     print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train_encoded, y_val_encoded, y_test_encoded)
 
-    early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, min_lr=1e-6)
-    model_checkpoint = ModelCheckpoint('model/LSTM/v2/best_model.keras', monitor='val_loss', save_best_only=True)
     tensorboard = TensorBoard(log_dir='./logs')
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-6)
+    model_checkpoint = ModelCheckpoint('model/LSTM/v2/best_model.keras', monitor='val_loss', save_best_only=True)
     
     n_splits = 5 
     tscv = TimeSeriesSplit(n_splits=n_splits)
@@ -370,13 +364,11 @@ def main():
         y_train_fold, y_val_fold = y_train_encoded[train_index], y_train_encoded[val_index]
 
         # Reshape for LSTM
-        X_train_fold_reshaped = reshape_for_lstm(X_train_fold, X_train_fold.shape[1])
-        X_val_fold_reshaped = reshape_for_lstm(X_val_fold, X_val_fold.shape[1])
-
+        X_train_fold_reshaped = reshape_for_lstm(X_train_fold)
+        X_val_fold_reshaped = reshape_for_lstm(X_val_fold)
+ 
         # Define and train the LSTM model
-        model = create_lstm(X_train_fold.shape[1], len(label_encoder.classes_))
-
-
+        model = create_lstm(X_train_fold_reshaped.shape[2], len(label_encoder.classes_))
         history = model.fit(
             X_train_fold_reshaped, y_train_fold,
             epochs=100,
@@ -391,12 +383,10 @@ def main():
         print(f'Validation Accuracy: {val_acc} || Validation Loss: {val_loss}')
 
     # Print average accuracy and loss over all cross-validation folds
-    avg_cv_acc = np.mean(cv_accuracies)
-    avg_cv_loss = np.mean(cv_losses)
-    print(f'Average CV Accuracy: {avg_cv_acc} || Average CV Loss: {avg_cv_loss}')
+    print(f'Average CV Accuracy: {np.mean(cv_accuracies)} || Average CV Loss: {np.mean(cv_losses)}')
 
     # Train the final model on the entire training set
-    final_model = create_lstm(X_train_transformed.shape[1], len(label_encoder.classes_))
+    final_model = create_lstm(X_train_reshaped.shape[2], len(label_encoder.classes_))
     history = final_model.fit(
         X_train_reshaped, y_train_encoded,
         epochs=100,
@@ -412,19 +402,16 @@ def main():
     test_loss, test_acc = final_model.evaluate(X_test_reshaped, y_test_encoded)
     print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
 
-
-
 def create_lstm(input_shape, output_units):
     model = Sequential()
-    model.add(LSTM(units=128, return_sequences=True, input_shape=(input_shape, 1), kernel_regularizer=L1L2()))
-    model.add(Dropout(0.5))
-    model.add(BatchNormalization())
-    model.add(Bidirectional(LSTM(units=32, return_sequences=True)))
+    model.add(LSTM(units=64, return_sequences=True, input_shape=(input_shape, 1), kernel_regularizer=L2(0.001)))
+    model.add(Dropout(0.2))
+    model.add(Bidirectional(LSTM(units=32, return_sequences=True, kernel_regularizer=L2())))
     model.add(Dropout(0.2))
     model.add(LSTM(units=8, return_sequences=False)),  # Optional additional LSTM layer
     model.add(Dropout(0.2))
     model.add(Dense(units=output_units, activation="softmax"))
-    model.compile(optimizer=Adam(learning_rate=0.001), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer="adam", loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
     return model
 
