@@ -4,13 +4,15 @@ import os
 import sys
 import time
 from typing import Optional
+from unicodedata import bidirectional
 
 from imblearn.over_sampling import SMOTE
-from keras._tf_keras.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from keras._tf_keras.keras.metrics import MeanAbsoluteError, Accuracy
+from keras._tf_keras.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TensorBoard
+from keras._tf_keras.keras.metrics import MeanAbsoluteError, Accuracy, Precision, Recall
 from keras._tf_keras.keras.models import Sequential
-from keras._tf_keras.keras.layers import LSTM, Dense, Dropout
-from keras._tf_keras.keras.regularizers import l2
+from keras._tf_keras.keras.optimizers import Adam , RMSprop, Nadam
+from keras._tf_keras.keras.layers import LSTM, Dense, Dropout, Bidirectional, BatchNormalization
+from keras._tf_keras.keras.regularizers import L1L2, L1, L2
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
@@ -26,6 +28,7 @@ from sklearn.experimental import enable_iterative_imputer
 from sklearn.feature_selection import SelectFromModel
 from sklearn.impute import IterativeImputer, KNNImputer, SimpleImputer
 from sklearn.linear_model import Lasso
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
@@ -353,32 +356,78 @@ def main():
 
     print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train_encoded, y_val_encoded, y_test_encoded)
 
-    # Define LSTM model
+    early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, min_lr=1e-6)
+    model_checkpoint = ModelCheckpoint('model/LSTM/v2/best_model.keras', monitor='val_loss', save_best_only=True)
+    tensorboard = TensorBoard(log_dir='./logs')
+    
+    n_splits = 5 
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    cv_accuracies = []
+    cv_losses = []
+    for train_index, val_index in tscv.split(X_train_transformed):
+        X_train_fold, X_val_fold = X_train_transformed[train_index], X_train_transformed[val_index]
+        y_train_fold, y_val_fold = y_train_encoded[train_index], y_train_encoded[val_index]
+
+        # Reshape for LSTM
+        X_train_fold_reshaped = reshape_for_lstm(X_train_fold, X_train_fold.shape[1])
+        X_val_fold_reshaped = reshape_for_lstm(X_val_fold, X_val_fold.shape[1])
+
+        # Define and train the LSTM model
+        model = create_lstm(X_train_fold.shape[1], len(label_encoder.classes_))
+
+
+        history = model.fit(
+            X_train_fold_reshaped, y_train_fold,
+            epochs=100,
+            batch_size=32,
+            validation_data=(X_val_fold_reshaped, y_val_fold),
+            callbacks=[early_stopping, model_checkpoint, reduce_lr, tensorboard]
+        )
+
+        val_loss, val_acc = model.evaluate(X_val_fold_reshaped, y_val_fold)
+        cv_losses.append(val_loss)
+        cv_accuracies.append(val_acc)
+        print(f'Validation Accuracy: {val_acc} || Validation Loss: {val_loss}')
+
+    # Print average accuracy and loss over all cross-validation folds
+    avg_cv_acc = np.mean(cv_accuracies)
+    avg_cv_loss = np.mean(cv_losses)
+    print(f'Average CV Accuracy: {avg_cv_acc} || Average CV Loss: {avg_cv_loss}')
+
+    # Train the final model on the entire training set
+    final_model = create_lstm(X_train_transformed.shape[1], len(label_encoder.classes_))
+    history = final_model.fit(
+        X_train_reshaped, y_train_encoded,
+        epochs=100,
+        batch_size=32,
+        validation_data=(X_val_reshaped, y_val_encoded),
+        callbacks=[early_stopping, model_checkpoint, reduce_lr, tensorboard]
+    )
+
+    # Final evaluation on validation and test sets
+    val_loss, val_acc = final_model.evaluate(X_val_reshaped, y_val_encoded)
+    print(f'Validation Set Accuracy: {val_acc} || Validation Set Loss: {val_loss}')
+
+    test_loss, test_acc = final_model.evaluate(X_test_reshaped, y_test_encoded)
+    print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
+
+
+
+def create_lstm(input_shape, output_units):
     model = Sequential()
-    model.add(LSTM(units=64, input_shape=(X_train_transformed.shape[1], 1), return_sequences=True, kernel_regularizer=l2()))
+    model.add(LSTM(units=128, return_sequences=True, input_shape=(input_shape, 1), kernel_regularizer=L1L2()))
+    model.add(Dropout(0.5))
+    model.add(BatchNormalization())
+    model.add(Bidirectional(LSTM(units=32, return_sequences=True)))
     model.add(Dropout(0.2))
     model.add(LSTM(units=8, return_sequences=False)),  # Optional additional LSTM layer
     model.add(Dropout(0.2))
-    model.add(Dense(units=len(label_encoder.classes_), activation='softmax'))
+    model.add(Dense(units=output_units, activation="softmax"))
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
+    return model
 
-    # Compile the model
-    model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
-
-        # Train the model
-    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=0.001)
-
-    history = model.fit(
-        X_train_reshaped, y_train_encoded, 
-        epochs=50, 
-        batch_size=32,
-        validation_data=(X_val_reshaped, y_val_encoded), 
-        callbacks=[early_stopping, reduce_lr])
-
-    # Evaluate the model on test set
-    test_loss, test_acc = model.evaluate(X_test_reshaped, y_test_encoded)
-    print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
 
 def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns):
     ts_numerical_transformer = Pipeline(steps=[

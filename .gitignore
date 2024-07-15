@@ -166,3 +166,4 @@ prime_data
 X_train_fe.csv
 X_val_fe.csv 
 X_test_fe.csv
+logs
