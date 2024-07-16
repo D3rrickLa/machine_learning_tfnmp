@@ -11,6 +11,7 @@ from keras._tf_keras.keras.callbacks import EarlyStopping, ReduceLROnPlateau, Mo
 from keras._tf_keras.keras.metrics import MeanAbsoluteError, Accuracy, Precision, Recall
 from keras._tf_keras.keras.models import Sequential
 from keras._tf_keras.keras.optimizers import Adam , RMSprop, Nadam
+from keras._tf_keras.keras.preprocessing.sequence import pad_sequences 
 from keras._tf_keras.keras.layers import LSTM, Dense, Dropout, Bidirectional, BatchNormalization
 from keras._tf_keras.keras.regularizers import L1L2, L1, L2
 from matplotlib import pyplot as plt
@@ -65,7 +66,9 @@ def create_dataframe_from_data(input_path: str):
         return pd.concat(data_frames, ignore_index=True), landmark_cols, landmark_world_cols
 
 def split_dataset(dataframe: pd.DataFrame, label_col: str, train_ratio=0.6 , val_ratio=0.2, test_ratio=0.2):
-
+    
+    assert train_ratio + val_ratio + test_ratio == 1.0, "Ratios must sum to 1."
+    
     train_frames = []
     val_frames = []
     test_frames = []
@@ -270,18 +273,53 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     
     # Ensure there are no duplicate columns
     df_combined = df_combined.loc[:,~df_combined.columns.duplicated()]
-   
     return df_combined
-
+   
 def display_null_columns(df: pd.DataFrame):
+
     null_counts = df.isnull().sum()
     null_columns = null_counts[null_counts > 0]
     
     result_df = pd.DataFrame({'Column': null_columns.index, 'Null Count': null_columns.values})
     return result_df
 
-def reshape_for_lstm(data):
-    return data.reshape((data.shape[0], data.shape[1], 1)) 
+def reshape_for_lstm(data, features=1):
+    return data.reshape((data.shape[0], data.shape[1], features)) 
+
+def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns):
+    ts_numerical_transformer = Pipeline(steps=[
+        ('imputer', KNNImputer(n_neighbors=5)), # might want to change this out back to the interpolatioon methods
+        ('imputer2', SimpleImputer(strategy="mean")),
+        ('scaler', MinMaxScaler())
+    ])
+
+    numerical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy="mean")),
+        ("normalize", StandardScaler())
+    ])
+
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy="most_frequent")), # technically this is wrong
+        ("ohe", OneHotEncoder())
+    ])
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('ts_num', ts_numerical_transformer, timeseries_columns),
+            ('num', numerical_transformer, numerical_columns),
+            ('cat', categorical_transformer, categorical_columns)
+        ],
+        remainder='passthrough',
+        sparse_threshold=0,
+        n_jobs=-1
+    )
+    
+    return preprocessor
+
+def print_shapes(X_train, X_val, X_test, y_train = None, y_val = None, y_test = None):
+    print(f"{X_train.shape}||{X_val.shape}||{X_test.shape}")
+    if y_train is not None and y_val is not None and y_test is not None:
+        print(f"{y_train.shape} || {y_val.shape} || {y_test.shape}")
 
 def main():
     input_dir = "data/data_2"
@@ -325,6 +363,10 @@ def main():
     X_val_transformed = preprocessor.transform(X_val_fe)
     X_test_transformed = preprocessor.transform(X_test_fe)
 
+    X_train_padded = pad_sequences(X_train_transformed, padding="post", dtype="float32")
+    X_val_padded = pad_sequences(X_val_transformed, padding="post", dtype="float32")
+    X_test_padded = pad_sequences(X_test_transformed, padding="post", dtype="float32")
+
     label_encoder = LabelEncoder()
     combined_labels = pd.concat([y_train, y_val, y_test])
     label_encoder.fit(combined_labels)
@@ -333,6 +375,8 @@ def main():
     y_val_encoded = label_encoder.transform(y_val)
     y_test_encoded = label_encoder.transform(y_test)
    
+    print_shapes(X_train_padded, X_val_padded, X_test_padded, y_train_encoded, y_val_encoded, y_test_encoded)
+
     # lasso = Lasso(alpha=0.1)
     # lasso.fit(X_train_transformed, y_train_encoded)
     # model_1 = SelectFromModel(lasso, prefit=True)
@@ -344,112 +388,10 @@ def main():
     # print("Selected features (Lasso):", model_1.get_support(indices=True))
 
     # Reshape the selected features for LSTM input
-    X_train_reshaped = reshape_for_lstm(X_train_transformed)
-    X_val_reshaped = reshape_for_lstm(X_val_transformed)
-    X_test_reshaped = reshape_for_lstm(X_test_transformed)
+    # num_samples = n_rows in a table
+    # num_time_step = l of each sequence - num of time steps (frames) in each sequence (they expect like 1 item for this, think temp cals every hr. every 1 hr is a 'row'/ts)
+    # num_features = num of var at each time steps - columns
 
-    print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train_encoded, y_val_encoded, y_test_encoded)
-
-    tensorboard = TensorBoard(log_dir='./logs')
-    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-6)
-    model_checkpoint = ModelCheckpoint('model/LSTM/v2/best_model.keras', monitor='val_loss', save_best_only=True)
-    
-    n_splits = 5 
-    tscv = TimeSeriesSplit(n_splits=n_splits)
-    cv_accuracies = []
-    cv_losses = []
-    for train_index, val_index in tscv.split(X_train_transformed):
-        X_train_fold, X_val_fold = X_train_transformed[train_index], X_train_transformed[val_index]
-        y_train_fold, y_val_fold = y_train_encoded[train_index], y_train_encoded[val_index]
-
-        # Reshape for LSTM
-        X_train_fold_reshaped = reshape_for_lstm(X_train_fold)
-        X_val_fold_reshaped = reshape_for_lstm(X_val_fold)
- 
-        # Define and train the LSTM model
-        model = create_lstm(X_train_fold_reshaped.shape[2], len(label_encoder.classes_))
-        history = model.fit(
-            X_train_fold_reshaped, y_train_fold,
-            epochs=100,
-            batch_size=32,
-            validation_data=(X_val_fold_reshaped, y_val_fold),
-            callbacks=[early_stopping, model_checkpoint, reduce_lr, tensorboard]
-        )
-
-        val_loss, val_acc = model.evaluate(X_val_fold_reshaped, y_val_fold)
-        cv_losses.append(val_loss)
-        cv_accuracies.append(val_acc)
-        print(f'Validation Accuracy: {val_acc} || Validation Loss: {val_loss}')
-
-    # Print average accuracy and loss over all cross-validation folds
-    print(f'Average CV Accuracy: {np.mean(cv_accuracies)} || Average CV Loss: {np.mean(cv_losses)}')
-
-    # Train the final model on the entire training set
-    final_model = create_lstm(X_train_reshaped.shape[2], len(label_encoder.classes_))
-    history = final_model.fit(
-        X_train_reshaped, y_train_encoded,
-        epochs=100,
-        batch_size=32,
-        validation_data=(X_val_reshaped, y_val_encoded),
-        callbacks=[early_stopping, model_checkpoint, reduce_lr, tensorboard]
-    )
-
-    # Final evaluation on validation and test sets
-    val_loss, val_acc = final_model.evaluate(X_val_reshaped, y_val_encoded)
-    print(f'Validation Set Accuracy: {val_acc} || Validation Set Loss: {val_loss}')
-
-    test_loss, test_acc = final_model.evaluate(X_test_reshaped, y_test_encoded)
-    print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
-
-def create_lstm(input_shape, output_units):
-    model = Sequential()
-    model.add(LSTM(units=64, return_sequences=True, input_shape=(input_shape, 1), kernel_regularizer=L2(0.001)))
-    model.add(Dropout(0.2))
-    model.add(Bidirectional(LSTM(units=32, return_sequences=True, kernel_regularizer=L2())))
-    model.add(Dropout(0.2))
-    model.add(LSTM(units=8, return_sequences=False)),  # Optional additional LSTM layer
-    model.add(Dropout(0.2))
-    model.add(Dense(units=output_units, activation="softmax"))
-    model.compile(optimizer="adam", loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-
-    return model
-
-
-def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns):
-    ts_numerical_transformer = Pipeline(steps=[
-        ('imputer', KNNImputer(n_neighbors=5)), # might want to change this out back to the interpolatioon methods
-        ('imputer2', SimpleImputer(strategy="mean")),
-        ('scaler', MinMaxScaler())
-    ])
-
-    numerical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy="mean")),
-        ("normalize", StandardScaler())
-    ])
-
-    categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy="most_frequent")), # technically this is wrong
-        ("ohe", OneHotEncoder())
-    ])
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('ts_num', ts_numerical_transformer, timeseries_columns),
-            ('num', numerical_transformer, numerical_columns),
-            ('cat', categorical_transformer, categorical_columns)
-        ],
-        remainder='passthrough',
-        sparse_threshold=0,
-        n_jobs=-1
-    )
-    
-    return preprocessor
-
-def print_shapes(X_train, X_val, X_test, y_train = None, y_val = None, y_test = None):
-    print(f"{X_train.shape}||{X_val.shape}||{X_test.shape}")
-    if y_train is not None and y_val is not None and y_test is not None:
-        print(f"{y_train.shape} || {y_val.shape} || {y_test.shape}")
 
 
         
