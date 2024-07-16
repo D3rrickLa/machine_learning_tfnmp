@@ -283,8 +283,9 @@ def display_null_columns(df: pd.DataFrame):
     result_df = pd.DataFrame({'Column': null_columns.index, 'Null Count': null_columns.values})
     return result_df
 
-def reshape_for_lstm(data, features=1):
-    return data.reshape((data.shape[0], data.shape[1], features)) 
+def reshape_for_lstm(data: pd.DataFrame, batch_size=-1, max_steps=0, num_features=1):
+    data_ar = np.array(data)
+    return data_ar.reshape(batch_size, max_steps, num_features) 
 
 def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns):
     ts_numerical_transformer = Pipeline(steps=[
@@ -325,37 +326,46 @@ def print_shapes(X_train, X_val, X_test, y_train = None, y_val = None, y_test = 
 
 def find_longest_continuous_chain(df: pd.DataFrame):
     largest_frame = df["remainder__frame"].max()
-    gesture_index_column = df.columns[df.columns.str.startswith("cat__gesture_index_")].tolist()
-    target_gesture_index = None
+    gesture_index_cols = df.columns[df.columns.str.startswith("cat__gesture_index_")]
     
-    for col in gesture_index_column:
-        
-        sum_value = df.loc[df['remainder__frame'] == largest_frame, col].sum()
-        if sum_value > 0:
-            target_gesture_index = col.split('_')[-1]  # Extract the gesture index from column name
-            print(target_gesture_index)
-            break  # Exit loop if target gesture index is found  
+    # Filter rows for the largest frame
+    largest_frame_data = df[df["remainder__frame"] == largest_frame]
 
-    return [largest_frame, target_gesture_index]
+    # Use vectorized sum and argmax to find the column with non-zero sum
+    sums = largest_frame_data[gesture_index_cols].sum()
+    target_gesture_index_idx = np.argmax(sums)
+    target_gesture_index = gesture_index_cols[target_gesture_index_idx].split('_')[-1]
+
+    return [largest_frame+1, target_gesture_index]
     
-def pad_dataframe(df: pd.DataFrame, frame_list: list):
+def pad_dataframe(df: pd.DataFrame):
+
+    frame_list = find_longest_continuous_chain(df.copy())
+
     cols_to_pad = [col for col in df.columns if col.startswith("cat__gesture_index_") and col != frame_list[1]]
+    num_of_cols = len([col for col in df.columns if col.startswith("cat__gesture_index_")])
+    data = df.values 
+    columns = df.columns
 
     for col in cols_to_pad:
+        col_index = df.columns.get_loc(col)
         num_frames = int(df[col].sum())
         frames_diff = frame_list[0] - num_frames
 
-        if frames_diff > 0:
-            gesture_index_rows = df[df[col] == 1].index
+        if frames_diff > 0: 
+            gesture_index_rows = np.where(data[:, col_index] == 1)[0]
             last_frame_index = gesture_index_rows[-1]
-            # Create padding DataFrame with -1 values for all columns except the current col
-            padding_data = {c: [-1] * frames_diff for c in df.columns}
-            padding_data[col] = [-2] * frames_diff
-            padding_df = pd.DataFrame(padding_data)
+            
+            # Create padding array with -1 values for all columns except the current col
+            padding_data = np.full((frames_diff, data.shape[1]), -1)
+            padding_data[:, col_index] = -2
             
             # Insert padding rows after the last frame of the current gesture
-            df = pd.concat([df.iloc[:last_frame_index + 1], padding_df, df.iloc[last_frame_index + 1:]]).reset_index(drop=True)
-    return df
+            data = np.insert(data, last_frame_index + 1, padding_data, axis=0)
+
+    # Convert the NumPy array back to a DataFrame
+    padded_df = pd.DataFrame(data, columns=columns)
+    return padded_df, frame_list[0], num_of_cols
 
 def main():
     input_dir = "data/data_2"
@@ -391,7 +401,7 @@ def main():
                 [f"angle_{n1}" for n1 in range(21)] + \
                 ["score"]
     timeseries_columns = landmark_cols + landmark_world_cols + derived_features
-    
+
     preprocessor = preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns)
     
     print(X_train_fe.shape, X_val_fe.shape, X_test_fe.shape)
@@ -403,14 +413,17 @@ def main():
     
     print_shapes(X_train_transformed, X_val_transformed, X_test_transformed)
     
-    frame_list = find_longest_continuous_chain(X_train_transformed)
-    X_train_padded = pad_dataframe(X_train_transformed, frame_list)
-
-
-    pd.DataFrame.to_csv(X_train_padded, path_or_buf="model/LSTM/v2/Tpadded.csv", index=False)
+    X_train_padded, X_train_len, X_train_batch = pad_dataframe(X_train_transformed)
+    X_val_padded, X_val_len, X_val_batch = pad_dataframe(X_val_transformed)
+    X_test_padded, X_test_len, X_test_batch = pad_dataframe(X_test_transformed)
    
-    # pd.DataFrame.to_csv(X_train_transformed, path_or_buf="model/LSTM/v2/TTransformed.csv", index=False)
-#   LSTM for me (N batches..., N frames, X features). batches, we can get from the unique index numbers, steps - size of largest recording - 111 for train, x features - length of combined columns
+    print_shapes(X_train_padded, X_val_padded, X_test_padded)
 
+    X_train_reshaped = np.reshape()
+    X_val_reshaped = reshape_for_lstm(X_val_padded, X_val_batch, X_val_len, len(X_val_padded.columns.values.tolist()))
+    X_test_reshaped = reshape_for_lstm(X_val_padded, X_test_batch, X_test_len, len(X_train_padded.columns.values.tolist()))
+   
+    print_shapes(X_train_reshaped, X_val_reshaped, X_test_reshaped)
+#   LSTM for me (N batches..., N frames, X features). batches, we can get from the unique index numbers, steps - size of largest recording - 111 for train, x features - length of combined columns
 
 main()
