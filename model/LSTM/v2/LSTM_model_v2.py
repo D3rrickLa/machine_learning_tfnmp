@@ -274,14 +274,6 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     # Ensure there are no duplicate columns
     df_combined = df_combined.loc[:,~df_combined.columns.duplicated()]
     return df_combined
-   
-def display_null_columns(df: pd.DataFrame):
-
-    null_counts = df.isnull().sum()
-    null_columns = null_counts[null_counts > 0]
-    
-    result_df = pd.DataFrame({'Column': null_columns.index, 'Null Count': null_columns.values})
-    return result_df
 
 def reshape_for_lstm(data: pd.DataFrame, batch_size=-1, max_steps=0, num_features=1):
     data_ar = np.array(data)
@@ -343,10 +335,12 @@ def pad_dataframe(df: pd.DataFrame):
     frame_list = find_longest_continuous_chain(df.copy())
 
     cols_to_pad = [col for col in df.columns if col.startswith("cat__gesture_index_") and col != frame_list[1]]
-    num_of_cols = len([col for col in df.columns if col.startswith("cat__gesture_index_")])
-    data = df.values 
-    columns = df.columns
+    num_of_cols = [col for col in df.columns if col.startswith("cat__gesture_index_")]
+    
+    # print(len(df.columns.values.tolist()))
 
+    columns = df.columns
+    data = df.values 
     for col in cols_to_pad:
         col_index = df.columns.get_loc(col)
         num_frames = int(df[col].sum())
@@ -364,8 +358,8 @@ def pad_dataframe(df: pd.DataFrame):
             data = np.insert(data, last_frame_index + 1, padding_data, axis=0)
 
     # Convert the NumPy array back to a DataFrame
-    padded_df = pd.DataFrame(data, columns=columns)
-    return padded_df, frame_list[0], num_of_cols
+    padded_df = pd.DataFrame(data, columns=columns).to_numpy()
+    return padded_df, frame_list[0], len(num_of_cols), len(df.columns.values.tolist())
 
 def main():
     input_dir = "data/data_2"
@@ -403,27 +397,34 @@ def main():
     timeseries_columns = landmark_cols + landmark_world_cols + derived_features
 
     preprocessor = preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns)
-    
-    print(X_train_fe.shape, X_val_fe.shape, X_test_fe.shape)
-
 
     X_train_transformed = preprocessor.fit_transform(X_train_fe)
     X_val_transformed = preprocessor.transform(X_val_fe)
     X_test_transformed = preprocessor.transform(X_test_fe)
     
-    print_shapes(X_train_transformed, X_val_transformed, X_test_transformed)
+    print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train, y_val, y_test)
     
-    X_train_padded, X_train_len, X_train_batch = pad_dataframe(X_train_transformed)
-    X_val_padded, X_val_len, X_val_batch = pad_dataframe(X_val_transformed)
-    X_test_padded, X_test_len, X_test_batch = pad_dataframe(X_test_transformed)
-   
-    print_shapes(X_train_padded, X_val_padded, X_test_padded)
+    X_train_padded, steps_len1, batch_size1, num_features = pad_dataframe(X_train_transformed)
+    X_val_padded, steps_len2, batch_size2, num_features = pad_dataframe(X_val_transformed)
+    X_test_padded, steps_len3, batch_size3, num_features = pad_dataframe(X_test_transformed)
 
-    X_train_reshaped = np.reshape()
-    X_val_reshaped = reshape_for_lstm(X_val_padded, X_val_batch, X_val_len, len(X_val_padded.columns.values.tolist()))
-    X_test_reshaped = reshape_for_lstm(X_val_padded, X_test_batch, X_test_len, len(X_train_padded.columns.values.tolist()))
-   
+    print_shapes(X_train_padded, X_val_padded, X_test_padded)
+    
+    X_train_reshaped = np.reshape(X_train_padded, (batch_size1, steps_len1, num_features))
+    X_val_reshaped = np.reshape(X_val_padded, (batch_size2, steps_len2, num_features))
+    X_test_reshaped = np.reshape(X_test_padded, (batch_size3, steps_len3, num_features))
+
     print_shapes(X_train_reshaped, X_val_reshaped, X_test_reshaped)
-#   LSTM for me (N batches..., N frames, X features). batches, we can get from the unique index numbers, steps - size of largest recording - 111 for train, x features - length of combined columns
+
+    label_encoder = LabelEncoder()
+    combined_labels = pd.concat([y_train, y_val, y_test])
+    label_encoder.fit_transform(combined_labels)
+
+    y_train_encoded = label_encoder.fit_transform(y_train)
+    y_val_encoded = label_encoder.fit_transform(y_val)
+    y_test_encoded = label_encoder.fit_transform(y_test)
+    
+    print_shapes(X_train_padded, X_val_padded, X_test_padded, y_train_encoded, y_val_encoded, y_test_encoded)
+
 
 main()
