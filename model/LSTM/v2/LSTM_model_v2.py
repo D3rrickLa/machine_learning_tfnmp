@@ -300,7 +300,7 @@ def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_colum
 
     categorical_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy="most_frequent")), # technically this is wrong
-        ("ohe", OneHotEncoder())
+        ("ohe", OneHotEncoder(sparse_output=False))
     ])
 
     preprocessor = ColumnTransformer(
@@ -313,6 +313,8 @@ def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_colum
         sparse_threshold=0,
         n_jobs=-1
     )
+ 
+    preprocessor.set_output(transform="pandas")
     
     return preprocessor
 
@@ -320,6 +322,40 @@ def print_shapes(X_train, X_val, X_test, y_train = None, y_val = None, y_test = 
     print(f"{X_train.shape}||{X_val.shape}||{X_test.shape}")
     if y_train is not None and y_val is not None and y_test is not None:
         print(f"{y_train.shape} || {y_val.shape} || {y_test.shape}")
+
+def find_longest_continuous_chain(df: pd.DataFrame):
+    largest_frame = df["remainder__frame"].max()
+    gesture_index_column = df.columns[df.columns.str.startswith("cat__gesture_index_")].tolist()
+    target_gesture_index = None
+    
+    for col in gesture_index_column:
+        
+        sum_value = df.loc[df['remainder__frame'] == largest_frame, col].sum()
+        if sum_value > 0:
+            target_gesture_index = col.split('_')[-1]  # Extract the gesture index from column name
+            print(target_gesture_index)
+            break  # Exit loop if target gesture index is found  
+
+    return [largest_frame, target_gesture_index]
+    
+def pad_dataframe(df: pd.DataFrame, frame_list: list):
+    cols_to_pad = [col for col in df.columns if col.startswith("cat__gesture_index_") and col != frame_list[1]]
+
+    for col in cols_to_pad:
+        num_frames = int(df[col].sum())
+        frames_diff = frame_list[0] - num_frames
+
+        if frames_diff > 0:
+            gesture_index_rows = df[df[col] == 1].index
+            last_frame_index = gesture_index_rows[-1]
+            # Create padding DataFrame with -1 values for all columns except the current col
+            padding_data = {c: [-1] * frames_diff for c in df.columns}
+            padding_data[col] = [-2] * frames_diff
+            padding_df = pd.DataFrame(padding_data)
+            
+            # Insert padding rows after the last frame of the current gesture
+            df = pd.concat([df.iloc[:last_frame_index + 1], padding_df, df.iloc[last_frame_index + 1:]]).reset_index(drop=True)
+    return df
 
 def main():
     input_dir = "data/data_2"
@@ -347,53 +383,34 @@ def main():
         X_test_fe.to_csv("model/LSTM/v2/X_test_fe.csv", index=False)
     
     # Step 4: Preprocessing 
-    numerical_columns = ["frame_rate","frame_width","frame_height","gesture_index"]
+    numerical_columns = ["frame_rate","frame_width","frame_height"]
     categorical_columns = ['hand', 'gesture_index']
-    
     derived_features = ['elapsed_time'] + \
                 [f"{feat}_{col}" for feat in ["velocity", "acceleration", "jerk", "mean", "variance", "deviation", "skew", "kurt"] for col in landmark_cols] + \
                 [f"lm_distance_{i}_{j}" for i in range(len(landmark_cols)//3) for j in range(len(landmark_cols)//3)] + \
                 [f"angle_{n1}" for n1 in range(21)] + \
                 ["score"]
     timeseries_columns = landmark_cols + landmark_world_cols + derived_features
-
+    
     preprocessor = preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns)
     
+    print(X_train_fe.shape, X_val_fe.shape, X_test_fe.shape)
+
+
     X_train_transformed = preprocessor.fit_transform(X_train_fe)
     X_val_transformed = preprocessor.transform(X_val_fe)
     X_test_transformed = preprocessor.transform(X_test_fe)
+    
+    print_shapes(X_train_transformed, X_val_transformed, X_test_transformed)
+    
+    frame_list = find_longest_continuous_chain(X_train_transformed)
+    X_train_padded = pad_dataframe(X_train_transformed, frame_list)
 
-    X_train_padded = pad_sequences(X_train_transformed, padding="post", dtype="float32")
-    X_val_padded = pad_sequences(X_val_transformed, padding="post", dtype="float32")
-    X_test_padded = pad_sequences(X_test_transformed, padding="post", dtype="float32")
 
-    label_encoder = LabelEncoder()
-    combined_labels = pd.concat([y_train, y_val, y_test])
-    label_encoder.fit(combined_labels)
-
-    y_train_encoded = label_encoder.transform(y_train)
-    y_val_encoded = label_encoder.transform(y_val)
-    y_test_encoded = label_encoder.transform(y_test)
+    pd.DataFrame.to_csv(X_train_padded, path_or_buf="model/LSTM/v2/Tpadded.csv", index=False)
    
-    print_shapes(X_train_padded, X_val_padded, X_test_padded, y_train_encoded, y_val_encoded, y_test_encoded)
+    # pd.DataFrame.to_csv(X_train_transformed, path_or_buf="model/LSTM/v2/TTransformed.csv", index=False)
+#   LSTM for me (N batches..., N frames, X features). batches, we can get from the unique index numbers, steps - size of largest recording - 111 for train, x features - length of combined columns
 
-    # lasso = Lasso(alpha=0.1)
-    # lasso.fit(X_train_transformed, y_train_encoded)
-    # model_1 = SelectFromModel(lasso, prefit=True)
-
-    # X_train_transformed = model_1.transform(X_train_transformed)
-    # X_val_transformed = model_1.transform(X_val_transformed)
-    # X_test_transformed = model_1.transform(X_test_transformed)
-
-    # print("Selected features (Lasso):", model_1.get_support(indices=True))
-
-    # Reshape the selected features for LSTM input
-    # num_samples = n_rows in a table
-    # num_time_step = l of each sequence - num of time steps (frames) in each sequence (they expect like 1 item for this, think temp cals every hr. every 1 hr is a 'row'/ts)
-    # num_features = num of var at each time steps - columns
-
-
-
-        
 
 main()
