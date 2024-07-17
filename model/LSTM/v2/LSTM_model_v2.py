@@ -8,11 +8,11 @@ from unicodedata import bidirectional
 
 from imblearn.over_sampling import SMOTE
 from keras._tf_keras.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TensorBoard
-from keras._tf_keras.keras.metrics import MeanAbsoluteError, Accuracy, Precision, Recall
+from keras._tf_keras.keras.metrics import MeanAbsoluteError, Accuracy, Precision, Recall, MeanSquaredError
 from keras._tf_keras.keras.models import Sequential
 from keras._tf_keras.keras.optimizers import Adam , RMSprop, Nadam
 from keras._tf_keras.keras.preprocessing.sequence import pad_sequences 
-from keras._tf_keras.keras.layers import LSTM, Dense, Dropout, Bidirectional, BatchNormalization
+from keras._tf_keras.keras.layers import LSTM, Dense, Dropout, Bidirectional, BatchNormalization, Masking
 from keras._tf_keras.keras.regularizers import L1L2, L1, L2
 from matplotlib import pyplot as plt
 import numpy as np
@@ -275,10 +275,6 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     df_combined = df_combined.loc[:,~df_combined.columns.duplicated()]
     return df_combined
 
-def reshape_for_lstm(data: pd.DataFrame, batch_size=-1, max_steps=0, num_features=1):
-    data_ar = np.array(data)
-    return data_ar.reshape(batch_size, max_steps, num_features) 
-
 def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns):
     ts_numerical_transformer = Pipeline(steps=[
         ('imputer', KNNImputer(n_neighbors=5)), # might want to change this out back to the interpolatioon methods
@@ -317,18 +313,29 @@ def print_shapes(X_train, X_val, X_test, y_train = None, y_val = None, y_test = 
         print(f"{y_train.shape} || {y_val.shape} || {y_test.shape}")
 
 def find_longest_continuous_chain(df: pd.DataFrame):
-    largest_frame = df["remainder__frame"].max()
     gesture_index_cols = df.columns[df.columns.str.startswith("cat__gesture_index_")]
-    
-    # Filter rows for the largest frame
-    largest_frame_data = df[df["remainder__frame"] == largest_frame]
 
-    # Use vectorized sum and argmax to find the column with non-zero sum
-    sums = largest_frame_data[gesture_index_cols].sum()
-    target_gesture_index_idx = np.argmax(sums)
-    target_gesture_index = gesture_index_cols[target_gesture_index_idx].split('_')[-1]
+    longest_length = 0 
+    target_gesture_index = None 
 
-    return [largest_frame+1, target_gesture_index]
+    for col in gesture_index_cols:
+        gesture_index = col.split("_")[-1]
+        gesture_data = df[col].values 
+
+        # Use NumPy to find the lengths of continuous sequences of 1s
+        padded = np.pad(gesture_data, (1, 1), constant_values=0)
+        diff = np.diff(padded)
+        start_indices = np.where(diff == 1)[0]
+        end_indices = np.where(diff == -1)[0]
+        lengths = end_indices - start_indices
+        
+        max_length = lengths.max() if lengths.size > 0 else 0
+
+        if max_length > longest_length:
+            longest_length = max_length
+            target_gesture_index = gesture_index
+
+    return [longest_length, target_gesture_index]
     
 def pad_dataframe(df: pd.DataFrame):
 
@@ -336,8 +343,6 @@ def pad_dataframe(df: pd.DataFrame):
 
     cols_to_pad = [col for col in df.columns if col.startswith("cat__gesture_index_") and col != frame_list[1]]
     num_of_cols = [col for col in df.columns if col.startswith("cat__gesture_index_")]
-    
-    # print(len(df.columns.values.tolist()))
 
     columns = df.columns
     data = df.values 
@@ -352,14 +357,15 @@ def pad_dataframe(df: pd.DataFrame):
             
             # Create padding array with -1 values for all columns except the current col
             padding_data = np.full((frames_diff, data.shape[1]), -1)
-            padding_data[:, col_index] = -2
+            padding_data[:, col_index] = -1
             
             # Insert padding rows after the last frame of the current gesture
             data = np.insert(data, last_frame_index + 1, padding_data, axis=0)
 
     # Convert the NumPy array back to a DataFrame
-    padded_df = pd.DataFrame(data, columns=columns).to_numpy()
-    return padded_df, frame_list[0], len(num_of_cols), len(df.columns.values.tolist())
+    padded_df = pd.DataFrame(data, columns=columns)
+    # padded_df.to_csv(f"model\\LSTM\\v2\\{frame_list[1]}_{time.time()}.csv", index=False)
+    return padded_df.to_numpy(), frame_list[0], len(num_of_cols), len(df.columns.values.tolist())
 
 def main():
     input_dir = "data/data_2"
@@ -396,25 +402,11 @@ def main():
                 ["score"]
     timeseries_columns = landmark_cols + landmark_world_cols + derived_features
 
-    preprocessor = preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns)
+    # preprocessor = preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns)
 
-    X_train_transformed = preprocessor.fit_transform(X_train_fe)
-    X_val_transformed = preprocessor.transform(X_val_fe)
-    X_test_transformed = preprocessor.transform(X_test_fe)
-    
-    print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train, y_val, y_test)
-    
-    X_train_padded, steps_len1, batch_size1, num_features = pad_dataframe(X_train_transformed)
-    X_val_padded, steps_len2, batch_size2, num_features = pad_dataframe(X_val_transformed)
-    X_test_padded, steps_len3, batch_size3, num_features = pad_dataframe(X_test_transformed)
-
-    print_shapes(X_train_padded, X_val_padded, X_test_padded)
-    
-    X_train_reshaped = np.reshape(X_train_padded, (batch_size1, steps_len1, num_features))
-    X_val_reshaped = np.reshape(X_val_padded, (batch_size2, steps_len2, num_features))
-    X_test_reshaped = np.reshape(X_test_padded, (batch_size3, steps_len3, num_features))
-
-    print_shapes(X_train_reshaped, X_val_reshaped, X_test_reshaped)
+    # X_train_transformed = preprocessor.fit_transform(X_train_fe)
+    # X_val_transformed = preprocessor.transform(X_val_fe)
+    # X_test_transformed = preprocessor.transform(X_test_fe)
 
     label_encoder = LabelEncoder()
     combined_labels = pd.concat([y_train, y_val, y_test])
@@ -424,7 +416,68 @@ def main():
     y_val_encoded = label_encoder.fit_transform(y_val)
     y_test_encoded = label_encoder.fit_transform(y_test)
     
-    print_shapes(X_train_padded, X_val_padded, X_test_padded, y_train_encoded, y_val_encoded, y_test_encoded)
+
+    new_pd = pd.concat([y_train, X_train_fe[["frame", "gesture_index"]]], axis=1)
+    new_pd.to_csv("model/LSTM/v2/y_combined.csv", index=False)
+    new_pd = pd.concat([y_val, X_val_fe[["frame", "gesture_index"]]], axis=1)
+    new_pd.to_csv("model/LSTM/v2/y_combined2.csv", index=False)
+    new_pd = pd.concat([y_test, X_test_fe[["frame", "gesture_index"]]], axis=1)
+    new_pd.to_csv("model/LSTM/v2/y_combined3.csv", index=False)
+
+    return 0
+    # print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train, y_val, y_test)
+    
+    X_train_padded, steps_len1, batch_size1, num_features = pad_dataframe(X_train_transformed)
+    X_val_padded, steps_len2, batch_size2, num_features = pad_dataframe(X_val_transformed)
+    X_test_padded, steps_len3, batch_size3, num_features = pad_dataframe(X_test_transformed)
+
+    # print_shapes(X_train_padded, X_val_padded, X_test_padded)
+    
+    X_train_reshaped = np.reshape(X_train_padded, (batch_size1, steps_len1, num_features))
+    X_val_reshaped = np.reshape(X_val_padded, (batch_size2, steps_len2, num_features))
+    X_test_reshaped = np.reshape(X_test_padded, (batch_size3, steps_len3, num_features))
+
+    
+    print_shapes(X_train_reshaped, X_val_reshaped, X_test_reshaped, y_train_encoded, y_val_encoded, y_test_encoded)
+
+    # tensorboard = TensorBoard(log_dir='./logs')	
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)	
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-6)	
+    model_checkpoint = ModelCheckpoint('model/LSTM/v2/best_model.keras', monitor='val_loss', save_best_only=True)
+    
+    model = create_lstm(X_train_reshaped, len(label_encoder.classes_))
+    history = model.fit(	
+        X_train_reshaped, y_train_encoded,	
+        epochs=100,	
+        batch_size=32,	
+        validation_data=(X_val_reshaped, y_val_encoded),	
+        callbacks=[early_stopping, model_checkpoint, reduce_lr]	
+    )	
+
+    test_loss, test_acc = model.evaluate(X_test_reshaped, y_test_encoded)	
+    print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
+
+    # Predict the probabilities for each class
+    y_pred_prob = model.predict(X_test_reshaped)
+
+    # Convert probabilities to class labels
+    y_pred_class = np.argmax(y_pred_prob, axis=1)
+
+    # Optionally, inverse transform to get the original class labels
+    y_pred_labels = label_encoder.inverse_transform(y_pred_class)
+
+    # Print the predictions
+    print("Predicted class labels:", y_pred_labels)
 
 
+def create_lstm(input : np.ndarray, output_units):
+    model = Sequential()
+    model.add(Masking(mask_value=-1))
+    model.add(LSTM(64, input_shape=(input[1], input[2]), kernel_regularizer=L2()))
+    model.add(Dropout(0.2))
+    model.add(LSTM(units=8, return_sequences=False))
+    model.add(Dropout(0.2))
+    model.add(Dense(units=output_units, activation="softmax"))
+    model.compile(optimizer=Adam(0.01), loss=MeanSquaredError(), metrics=['accuracy'])
+    return model
 main()
