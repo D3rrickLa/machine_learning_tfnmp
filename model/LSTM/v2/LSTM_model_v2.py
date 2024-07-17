@@ -12,7 +12,7 @@ from keras._tf_keras.keras.metrics import MeanAbsoluteError, Accuracy, Precision
 from keras._tf_keras.keras.models import Sequential
 from keras._tf_keras.keras.optimizers import Adam , RMSprop, Nadam
 from keras._tf_keras.keras.preprocessing.sequence import pad_sequences 
-from keras._tf_keras.keras.layers import LSTM, Dense, Dropout, Bidirectional, BatchNormalization, Masking
+from keras._tf_keras.keras.layers import LSTM, Dense, Dropout, Bidirectional, BatchNormalization, Masking, InputLayer
 from keras._tf_keras.keras.regularizers import L1L2, L1, L2
 from matplotlib import pyplot as plt
 import numpy as np
@@ -92,11 +92,11 @@ def split_dataset(dataframe: pd.DataFrame, label_col: str, train_ratio=0.6 , val
 
     # Separate X and y
     X_train = train_set.drop(columns=[label_col])
-    y_train = train_set[label_col]
+    y_train = train_set[[label_col, "frame", "gesture_index"]]
     X_val = val_set.drop(columns=[label_col])
-    y_val = val_set[label_col]
+    y_val = val_set[[label_col, "frame", "gesture_index"]]
     X_test = test_set.drop(columns=[label_col])
-    y_test = test_set[label_col]
+    y_test = test_set[[label_col, "frame", "gesture_index"]]
 
     return X_train, y_train, X_val, y_val, X_test, y_test
 
@@ -275,6 +275,22 @@ def calculate_hand_motion_features(df: pd.DataFrame, landmark_cols: list):
     df_combined = df_combined.loc[:,~df_combined.columns.duplicated()]
     return df_combined
 
+def reshape_y_labels(df: pd.DataFrame):
+    unique_sequences = []
+    for _, group in df.groupby("gesture_index"):
+        reset_points = group['frame'].diff().fillna(1) < 0
+        if reset_points.any():
+            unique_sequences.append(group[reset_points])
+        else:
+            # If no reset points, consider the whole group as unique
+            unique_sequences.append(group.iloc[[0]])
+
+    # Concatenate unique sequences
+    df_unique = pd.concat(unique_sequences).reset_index(drop=True)
+    return df_unique["gesture"]
+
+
+
 def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns):
     ts_numerical_transformer = Pipeline(steps=[
         ('imputer', KNNImputer(n_neighbors=5)), # might want to change this out back to the interpolatioon methods
@@ -308,9 +324,9 @@ def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_colum
     return preprocessor
 
 def print_shapes(X_train, X_val, X_test, y_train = None, y_val = None, y_test = None):
-    print(f"{X_train.shape}||{X_val.shape}||{X_test.shape}")
+    print(f"X shapes: {X_train.shape}||{X_val.shape}||{X_test.shape}")
     if y_train is not None and y_val is not None and y_test is not None:
-        print(f"{y_train.shape} || {y_val.shape} || {y_test.shape}")
+        print(f"y shapes: {y_train.shape} || {y_val.shape} || {y_test.shape}")
 
 def find_longest_continuous_chain(df: pd.DataFrame):
     gesture_index_cols = df.columns[df.columns.str.startswith("cat__gesture_index_")]
@@ -402,29 +418,19 @@ def main():
                 ["score"]
     timeseries_columns = landmark_cols + landmark_world_cols + derived_features
 
-    # preprocessor = preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns)
+    preprocessor = preprocess_pipeline(timeseries_columns, numerical_columns, categorical_columns)
 
-    # X_train_transformed = preprocessor.fit_transform(X_train_fe)
-    # X_val_transformed = preprocessor.transform(X_val_fe)
-    # X_test_transformed = preprocessor.transform(X_test_fe)
+    X_train_transformed = preprocessor.fit_transform(X_train_fe)
+    X_val_transformed = preprocessor.transform(X_val_fe)
+    X_test_transformed = preprocessor.transform(X_test_fe)
 
-    label_encoder = LabelEncoder()
-    combined_labels = pd.concat([y_train, y_val, y_test])
-    label_encoder.fit_transform(combined_labels)
+    y_train_reshaped = reshape_y_labels(y_train)
+    y_val_reshaped = reshape_y_labels(y_val)
+    y_test_reshaped = reshape_y_labels(y_test)
 
-    y_train_encoded = label_encoder.fit_transform(y_train)
-    y_val_encoded = label_encoder.fit_transform(y_val)
-    y_test_encoded = label_encoder.fit_transform(y_test)
-    
 
-    new_pd = pd.concat([y_train, X_train_fe[["frame", "gesture_index"]]], axis=1)
-    new_pd.to_csv("model/LSTM/v2/y_combined.csv", index=False)
-    new_pd = pd.concat([y_val, X_val_fe[["frame", "gesture_index"]]], axis=1)
-    new_pd.to_csv("model/LSTM/v2/y_combined2.csv", index=False)
-    new_pd = pd.concat([y_test, X_test_fe[["frame", "gesture_index"]]], axis=1)
-    new_pd.to_csv("model/LSTM/v2/y_combined3.csv", index=False)
+    label_encoder, y_train_encoded, y_val_encoded, y_test_encoded = encode_labels(y_train_reshaped, y_val_reshaped, y_test_reshaped)
 
-    return 0
     # print_shapes(X_train_transformed, X_val_transformed, X_test_transformed, y_train, y_val, y_test)
     
     X_train_padded, steps_len1, batch_size1, num_features = pad_dataframe(X_train_transformed)
@@ -437,47 +443,77 @@ def main():
     X_val_reshaped = np.reshape(X_val_padded, (batch_size2, steps_len2, num_features))
     X_test_reshaped = np.reshape(X_test_padded, (batch_size3, steps_len3, num_features))
 
-    
-    print_shapes(X_train_reshaped, X_val_reshaped, X_test_reshaped, y_train_encoded, y_val_encoded, y_test_encoded)
+    # print_shapes(X_train_reshaped, X_val_reshaped, X_test_reshaped, y_train_encoded, y_val_encoded, y_test_encoded)
 
-    # tensorboard = TensorBoard(log_dir='./logs')	
-    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)	
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-6)	
+    tensorboard = TensorBoard(log_dir='./logs')	
+    early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True)	
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-6)	
     model_checkpoint = ModelCheckpoint('model/LSTM/v2/best_model.keras', monitor='val_loss', save_best_only=True)
+
+    # ts_crossval(y_train_encoded, X_train_reshaped, label_encoder)
     
-    model = create_lstm(X_train_reshaped, len(label_encoder.classes_))
+    input = (X_train_reshaped.shape[0], X_train_reshaped.shape[1], X_train_reshaped.shape[2])
+
+    model = create_lstm(input, len(label_encoder.classes_))
     history = model.fit(	
         X_train_reshaped, y_train_encoded,	
-        epochs=100,	
-        batch_size=32,	
+        epochs=200,	
         validation_data=(X_val_reshaped, y_val_encoded),	
-        callbacks=[early_stopping, model_checkpoint, reduce_lr]	
+        callbacks=[early_stopping, reduce_lr, model_checkpoint, tensorboard]	
     )	
 
     test_loss, test_acc = model.evaluate(X_test_reshaped, y_test_encoded)	
     print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
 
-    # Predict the probabilities for each class
-    y_pred_prob = model.predict(X_test_reshaped)
+def encode_labels(y_train_reshaped, y_val_reshaped, y_test_reshaped):
+    label_encoder = LabelEncoder()
+    combined_labels = pd.concat([y_train_reshaped, y_val_reshaped, y_test_reshaped])
+    label_encoder.fit_transform(combined_labels)
 
-    # Convert probabilities to class labels
-    y_pred_class = np.argmax(y_pred_prob, axis=1)
+    y_train_encoded = label_encoder.fit_transform(y_train_reshaped)
+    y_val_encoded = label_encoder.fit_transform(y_val_reshaped)
+    y_test_encoded = label_encoder.fit_transform(y_test_reshaped)
 
-    # Optionally, inverse transform to get the original class labels
-    y_pred_labels = label_encoder.inverse_transform(y_pred_class)
+    return label_encoder,y_train_encoded,y_val_encoded,y_test_encoded
 
-    # Print the predictions
-    print("Predicted class labels:", y_pred_labels)
+def ts_crossval(y_train_encoded, X_train_padded, label_encoder):
+    
+    early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True)	
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-6)	
+    cv_accuracies = []
+    cv_losses = []
+    n_splits = 5 
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    for train_idx, test_idx in tscv.split(X_train_padded):
+        X_train_fold, X_test_fold = X_train_padded[train_idx], X_train_padded[test_idx]
+        y_train_fold, y_test_fold = y_train_encoded[train_idx], y_train_encoded[test_idx]
 
+        model = create_lstm(input_shape=(X_train_fold.shape[0], X_train_fold.shape[1], X_train_fold.shape[2]), output_units=len(label_encoder.classes_))
+        history = model.fit(
+            X_train_fold, y_train_fold,	
+            epochs=200,	
+            validation_split=0.2,	
+            callbacks=[early_stopping, reduce_lr],
+            verbose=0
+        )
 
-def create_lstm(input : np.ndarray, output_units):
+        test_loss, test_acc = model.evaluate(X_test_fold, y_test_fold)	
+        print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
+        cv_losses.append(test_loss)
+        cv_accuracies.append(test_acc)
+    
+    # Print average accuracy and loss over all cross-validation folds
+    print(f'Average CV Accuracy: {np.mean(cv_accuracies)} || Average CV Loss: {np.mean(cv_losses)}')
+
+def create_lstm(input_shape, output_units):
     model = Sequential()
+    model.add(InputLayer(shape=input_shape[1:]))
     model.add(Masking(mask_value=-1))
-    model.add(LSTM(64, input_shape=(input[1], input[2]), kernel_regularizer=L2()))
+    model.add(LSTM(units=64, kernel_regularizer=L1L2(), stateful=False))
     model.add(Dropout(0.2))
-    model.add(LSTM(units=8, return_sequences=False))
-    model.add(Dropout(0.2))
-    model.add(Dense(units=output_units, activation="softmax"))
-    model.compile(optimizer=Adam(0.01), loss=MeanSquaredError(), metrics=['accuracy'])
+    model.add(Dense(units=output_units, activation="softmax", kernel_regularizer=L2(0.001)))
+    model.compile(optimizer=Adam(0.01), loss="sparse_categorical_crossentropy", metrics=['accuracy'])
     return model
 main()
+
+# NOTE: got to reun the entire program - not from csv - messsed up one of the names
