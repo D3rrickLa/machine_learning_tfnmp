@@ -7,6 +7,7 @@ from typing import Optional
 from unicodedata import bidirectional
 
 from imblearn.over_sampling import SMOTE
+import joblib
 from keras._tf_keras.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TensorBoard
 from keras._tf_keras.keras.metrics import MeanAbsoluteError, Accuracy, Precision, Recall, MeanSquaredError
 from keras._tf_keras.keras.models import Sequential
@@ -305,7 +306,7 @@ def preprocess_pipeline(timeseries_columns, numerical_columns, categorical_colum
 
     categorical_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy="most_frequent")), # technically this is wrong
-        ("ohe", OneHotEncoder(sparse_output=False))
+        ("ohe", OneHotEncoder(sparse_output=False, handle_unknown="ignore"))
     ])
 
     preprocessor = ColumnTransformer(
@@ -400,6 +401,7 @@ def main():
         X_test_fe = pd.read_csv("model/LSTM/v2/X_test_fe.csv")
         print("imported")
     else:
+        print("feature engineering...")
         X_train_fe = calculate_hand_motion_features(X_train, landmark_cols)
         X_val_fe = calculate_hand_motion_features(X_val, landmark_cols)
         X_test_fe = calculate_hand_motion_features(X_test, landmark_cols)
@@ -424,10 +426,14 @@ def main():
     X_val_transformed = preprocessor.transform(X_val_fe)
     X_test_transformed = preprocessor.transform(X_test_fe)
 
+    joblib.dump(preprocessor, "model/LSTM/v2/preprocess.pkl")
+    
     y_train_reshaped = reshape_y_labels(y_train)
     y_val_reshaped = reshape_y_labels(y_val)
     y_test_reshaped = reshape_y_labels(y_test)
+    _, class_labels = pd.factorize(y_train_reshaped)
 
+    print(class_labels)
 
     label_encoder, y_train_encoded, y_val_encoded, y_test_encoded = encode_labels(y_train_reshaped, y_val_reshaped, y_test_reshaped)
 
@@ -448,7 +454,7 @@ def main():
     tensorboard = TensorBoard(log_dir='./logs')	
     early_stopping = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True)	
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-6)	
-    model_checkpoint = ModelCheckpoint('model/LSTM/v2/best_model.keras', monitor='val_loss', save_best_only=True)
+    # model_checkpoint = ModelCheckpoint('model/LSTM/v2/best_model.keras', monitor='val_loss', save_best_only=True)
 
     # ts_crossval(y_train_encoded, X_train_reshaped, label_encoder)
     
@@ -459,11 +465,22 @@ def main():
         X_train_reshaped, y_train_encoded,	
         epochs=200,	
         validation_data=(X_val_reshaped, y_val_encoded),	
-        callbacks=[early_stopping, reduce_lr, model_checkpoint, tensorboard]	
+        callbacks=[early_stopping, reduce_lr, tensorboard]	
     )	
 
     test_loss, test_acc = model.evaluate(X_test_reshaped, y_test_encoded)	
     print(f'Test Accuracy: {test_acc} || Test Loss: {test_loss}')
+
+    model.save("model/LSTM/v2/gesture_model_v1.keras")
+    
+# Predictions
+    y_pred = model.predict(X_test_reshaped)
+    y_pred_classes = np.argmax(y_pred, axis=1)
+
+    # get the class labels
+    class_labels_df = pd.DataFrame({'gesture': class_labels})
+    class_labels_df.to_csv("model/LSTM/v2/class_labels.csv", index=False)
+
 
 def encode_labels(y_train_reshaped, y_val_reshaped, y_test_reshaped):
     label_encoder = LabelEncoder()
@@ -511,7 +528,7 @@ def create_lstm(input_shape, output_units):
     model.add(Masking(mask_value=-1))
     model.add(LSTM(units=64, kernel_regularizer=L1L2(), stateful=False))
     model.add(Dropout(0.2))
-    model.add(Dense(units=output_units, activation="softmax", kernel_regularizer=L2(0.001)))
+    model.add(Dense(units=output_units, activation="softmax", kernel_regularizer=L2(0.0001)))
     model.compile(optimizer=Adam(0.01), loss="sparse_categorical_crossentropy", metrics=['accuracy'])
     return model
 main()
