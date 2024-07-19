@@ -181,3 +181,11 @@ def calculate_gesture_stats(df: pd.DataFrame, landmark_cols: list, window_size: 
 
 
 NOTE: consider doing an overall means/va/dev on related gestures as a feature
+
+
+
+NOTE:
+gesture index probably shouldn't be in the dataset, also get really bad results from new data
+
+
+scarping v2 model, moving toward v3
