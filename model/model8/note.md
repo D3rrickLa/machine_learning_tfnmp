@@ -15,6 +15,15 @@ training loss vs val loss
 loss < val loss - model too simple/high regularization 
 loss = val loss - generalizes well
 
+Underfitting – Validation and training error high
+
+Overfitting – Validation error is high, training error low
+            Overfitting would be when acc is higher than val_acc and loss lower than val_loss.
+
+Good fit – Validation error low, slightly higher than the training error
+
+Unknown fit - Validation error low, training error 'high'
+
 
 dense
 - sigmoid: binary 
