@@ -29,3 +29,10 @@ dense
 - sigmoid: binary 
 - softmax: multi class 
 - linear/relu: regression
+
+
+
+
+we now gotta try and add more data into this model
+will switch over to the dev can branch once we know it can do 6+ gestures
+with relative acc

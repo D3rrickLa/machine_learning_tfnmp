@@ -103,7 +103,7 @@ def save_to_npy(gesture_action, landmark_seq, frame_rate, frame_width, frame_hei
 # Initialize variables
 isRecording = False
 landmark_seq = []
-gesture_action = "DRINK"
+gesture_action = "THANK-YOU"
 output_dir = "data/data_3"  # Ensure this directory exists
 
 def auto_capture():
