@@ -6,6 +6,40 @@ import time
 import cv2 
 import numpy as np
 import mediapipe as mp 
+"""
+READ ME PLEASE 
+
+RIGHT NOW I AM TEST 5 GESTURES
+- THANK-YOU
+- MORE
+- EAT
+- DRINK
+- ALL-DONE
+
+
+All you guys need to do is run this program (and have the necessary libraries) and be in frame - the landmark should be displayed onto of you.
+Record yourself doing ONLY these gestures, and make sure the are labelled as such above (ALL CAPS and for 2+ words, have a '-' between the words)
+
+NOTE ON RECORDING
+press 'r' to start, will do a countdown (3,2,1) and then start recording. Will record 30 frames - prints 0 - 29. That is when you do your gesture.
+This will repeat for 35 times (can be changed in the code below)
+
+Once down, everything will be saved to data/data_3, or whatever folder you want. Just make sure that folder exists before hand.
+
+In case you forgot how to setup an environment
+- python -m venv "path/to/env"
+- navigate to the newly created folder and open VSC
+- in VSC, open up the terminal and make sure you switch to CMD (Windows ONLY)
+- type: Scripts\Activate 
+- the virutal env should have launched
+- install the following using: pip install "mediapipe==0.10.9" "opencv-python==4.9.0.80" "numpy==1.26.4"
+
+this is for windows, but Mac should be similar
+
+MSG if any problem has occurred
+
+"""
+
 
 class ProgramShortcuts(Enum):
     quit = ord(u"q")
@@ -103,9 +137,10 @@ def save_to_npy(gesture_action, landmark_seq, frame_rate, frame_width, frame_hei
 # Initialize variables
 isRecording = False
 landmark_seq = []
-gesture_action = "THANK-YOU"
+gesture_action = "THANK-YOU" # change htis
 output_dir = "data/data_3"  # Ensure this directory exists
 
+# adjust the values here to get more or less repeats
 def auto_capture():
     start_auto_capture(
         num_repeats=35,
