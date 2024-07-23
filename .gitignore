@@ -165,5 +165,7 @@ cython_debug/
 
 
 # dataset
+.pkl
+.csv
 prime_data
 LSTM
