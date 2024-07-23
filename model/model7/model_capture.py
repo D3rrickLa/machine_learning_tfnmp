@@ -209,6 +209,7 @@ while cap.isOpened():
         case ProgramShortcuts.quit.value:
             break
         case ProgramShortcuts.start.value:
+            gesture_action = input("please enter the gesture name:")
             threading.Thread(target=auto_capture).start()
 
     image, results = mediapipe_detection(frame, holistics)

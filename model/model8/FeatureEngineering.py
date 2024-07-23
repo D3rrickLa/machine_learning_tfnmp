@@ -21,7 +21,7 @@ class FeatureEngineering():
         velocity_cols = [f"velocity_{col}" for col in cols]
         acceleration_cols = [f"acceleration_{col}" for col in cols]
         jerk_cols = [f"jerk_{col}" for col in cols]
-        
+
         for _, gesture_data in df.groupby("gesture_index"): 
             gesture_data = gesture_data.sort_values(by="frame")
 
