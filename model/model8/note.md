@@ -39,3 +39,11 @@ with relative acc
 
 
 with 5 gestures, we get such bad scores that we can only consider augmentation or more data 
+
+
+
+update:
+pegged at 0.2 for acc, nothing is improving
+![alt text](image.png)
+
+might switch to a CNN 1 d model, maybe TCN or even LSTM + CNN
