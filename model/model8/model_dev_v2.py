@@ -121,7 +121,7 @@ def augment_model(df: pd.DataFrame, noise_level=0.0, translation_vector=None, ro
                                                       sin_angle * df_augmented[col] + cos_angle * df_augmented[y_col])
     
     # making the gesture index of the augment different - will be added back to the the df
-    # will need to double up on the y train and test as well
+    # will need to double up on the y train and test as well - in reshape_y_labels
     if "gesture_index" in df_augmented.columns:
         cur_time = time.time_ns()
         df_augmented["gesture_index"] += cur_time
@@ -196,6 +196,8 @@ def reshape_y_labels(df : pd.DataFrame):
     breaks (e.g. 12 -> 0), everything before "12" will be removed keeping only
     one instance of the gesture
     """
+    
+    print("Shape after doubling:", df.shape, "DF:", df.shape)
     unique_sequences = []
     for _, group in df.groupby("gesture_index"):
         reset_points = group['frame'].diff().fillna(1) < 0
@@ -207,7 +209,8 @@ def reshape_y_labels(df : pd.DataFrame):
 
     # Concatenate unique sequences
     df_unique = pd.concat(unique_sequences).reset_index(drop=True)
-    return pd.factorize(df_unique["gesture"])
+    df_doubled = pd.concat([df_unique, df_unique], axis=0).reset_index(drop=True)
+    return pd.factorize(df_doubled["gesture"])
 
 def create_lstm(input_shape, output_units):
     model = Sequential()
@@ -273,7 +276,7 @@ input =  (X_train_reshaped.shape[1], X_train_reshaped.shape[2])
 model = create_lstm(input, labels)
 history = model.fit(
     X_train_reshaped, y_train_one_hot, 
-    epochs=200,  
+    epochs=100,  
     validation_split=0.20,
     callbacks=[early_stopping, reduce_lr],
     verbose=2
