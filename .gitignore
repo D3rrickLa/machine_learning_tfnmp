@@ -173,3 +173,5 @@ LSTM
 model/model8/train.csv
 model/model8/test.csv
 model/youtube
+model/model8/k_model_and_weights
+

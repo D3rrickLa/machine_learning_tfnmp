@@ -47,3 +47,5 @@ pegged at 0.2 for acc, nothing is improving
 ![alt text](image.png)
 
 might switch to a CNN 1 d model, maybe TCN or even LSTM + CNN
+
+so got a good pipeline working out, the best model "" it not really that good, it's overfitting, need to play with it more
