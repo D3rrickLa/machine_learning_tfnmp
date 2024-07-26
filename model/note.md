@@ -189,3 +189,13 @@ gesture index probably shouldn't be in the dataset, also get really bad results 
 
 
 scarping v2 model, moving toward v3
+
+
+
+update: cnn_lstm v1 got this result
+![alt text](image.png)
+![alt text](image-1.png)
+
+honestly, not bad, but could be better, getting arouond 0.41 in loss for test and 0.87 in test acc
+
+TODO: a nun/other dataset

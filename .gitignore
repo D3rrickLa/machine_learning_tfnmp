@@ -167,3 +167,5 @@ X_train_fe.csv
 X_val_fe.csv 
 X_test_fe.csv
 logs
+k_models
+model/CNN_LSTM/v1/preprocessor.pkl
