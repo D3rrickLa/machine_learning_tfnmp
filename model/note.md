@@ -199,3 +199,16 @@ update: cnn_lstm v1 got this result
 honestly, not bad, but could be better, getting arouond 0.41 in loss for test and 0.87 in test acc
 
 TODO: a nun/other dataset
+
+
+so after doing some manually tunning, got this for model_dev
+![alt text](image-2.png)
+![alt text](image-3.png)
+
+the model is technically worst, but when running the the test and acc loss:
+Test Loss: 0.3159714937210083
+Test Accuracy: 0.918367326259613
+
+is was higher compared to this: - current model
+Test Loss: 0.41919127106666565
+Test Accuracy: 0.8775510191917419
