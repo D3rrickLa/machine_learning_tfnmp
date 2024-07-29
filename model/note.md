@@ -223,13 +223,12 @@ this got a test loss/acc of 0.28 and 0.93
 
 
 TODO:
-- a none/other dataset
-- more data of existing getures
-- a few new gestures (want maybe 10 in total)
+- a none/other dataset ✅
+- more data of existing getures ✅
+- a few new gestures (want maybe 10 in total) ✅
 - a way to do do continuous machine learning - CML (process which model learns from new data without re-training)
  - look at PNN
  - freezing params to prevent catastrophic forgetting
- - 
 - a better program to demo the program
 - android project?
 - web project?
@@ -237,3 +236,11 @@ TODO:
 
 https://i.pinimg.com/736x/76/c6/f1/76c6f110fbff120b9030a3d2633b3911.jpg 
 these are the gestures we will be doing
+
+
+after adding some new gestures, it improved... the model
+![alt text](image-6.png)
+![alt text](image-7.png)
+
+Test Loss: 0.2802346646785736
+Test Accuracy: 0.9722222089767456
