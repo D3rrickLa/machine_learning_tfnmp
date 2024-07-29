@@ -225,8 +225,11 @@ this got a test loss/acc of 0.28 and 0.93
 TODO:
 - a none/other dataset
 - more data of existing getures
-- a few new gestures 
+- a few new gestures (want maybe 10 in total)
 - a way to do do continuous machine learning - CML (process which model learns from new data without re-training)
  - look at PNN
  - freezing params to prevent catastrophic forgetting
  - 
+- a better program to demo the program
+- android project?
+- web project?
