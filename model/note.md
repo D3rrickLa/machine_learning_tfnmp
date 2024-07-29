@@ -198,7 +198,7 @@ update: cnn_lstm v1 got this result
 
 honestly, not bad, but could be better, getting arouond 0.41 in loss for test and 0.87 in test acc
 
-TODO: a nun/other dataset
+
 
 
 so after doing some manually tunning, got this for model_dev
@@ -212,3 +212,21 @@ Test Accuracy: 0.918367326259613
 is was higher compared to this: - current model
 Test Loss: 0.41919127106666565
 Test Accuracy: 0.8775510191917419
+
+
+
+so new model, after tweaking like one thing go this (from the model_dev series)
+![alt text](image-4.png)
+![alt text](image-5.png)
+
+this got a test loss/acc of 0.28 and 0.93
+
+
+TODO:
+- a none/other dataset
+- more data of existing getures
+- a few new gestures 
+- a way to do do continuous machine learning - CML (process which model learns from new data without re-training)
+ - look at PNN
+ - freezing params to prevent catastrophic forgetting
+ - 
