@@ -233,3 +233,7 @@ TODO:
 - a better program to demo the program
 - android project?
 - web project?
+
+
+https://i.pinimg.com/736x/76/c6/f1/76c6f110fbff120b9030a3d2633b3911.jpg 
+these are the gestures we will be doing
