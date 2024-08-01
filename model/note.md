@@ -244,3 +244,14 @@ after adding some new gestures, it improved... the model
 
 Test Loss: 0.2802346646785736
 Test Accuracy: 0.9722222089767456
+
+
+so having tested the model:
+- none is working
+- potty isn't really work
+- mom doesn't work, think it's dad
+- i love you isn't working
+so out of the 5 new gestures, only 2 work
+
+
+some things to note, adding more conv1d seems ot make the val worse
