@@ -249,9 +249,9 @@ Test Accuracy: 0.9722222089767456
 so having tested the model:
 - none is working
 - potty isn't really work
-- mom doesn't work, think it's dad
+- mom doesn't work, think it's dad - so like dad is just there a lot 
 - i love you isn't working
 so out of the 5 new gestures, only 2 work
 
 
-some things to note, adding more conv1d seems ot make the val worse
+some things to note, adding more conv1d seems ot make the val worse...
