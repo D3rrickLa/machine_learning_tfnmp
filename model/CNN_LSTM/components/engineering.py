@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 
-
-class feature_engineering():
+class FeatureEngineering():
     def calculate_elapsed_time(df: pd.DataFrame) -> pd.DataFrame:
         elapsed_lists = []
 
