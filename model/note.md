@@ -255,3 +255,14 @@ so out of the 5 new gestures, only 2 work
 
 
 some things to note, adding more conv1d seems ot make the val worse...
+
+
+
+sooo, we have gotten a better model, kind of? Compared to the model before
+![alt text](image-8.png)
+![alt text](image-9.png)
+
+Test Loss: 0.2166730761528015
+Test Accuracy: 0.9814814925193787
+
+we are close to getting the test loss to sub .20, but the train/val loss are still not converging - also overfitting still happening

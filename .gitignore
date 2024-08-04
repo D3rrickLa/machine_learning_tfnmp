@@ -170,3 +170,6 @@ logs
 k_models
 model/CNN_LSTM/v1/preprocessor.pkl
 *.zip
+X_train_transformed.csv
+X_val_transformed.csv 
+X_test_transformed.csv
