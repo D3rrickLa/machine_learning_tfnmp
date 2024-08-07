@@ -41,3 +41,5 @@ will be trying to augment more data along with hp and adding more layers
     # Dense(100, activation='tanh'),
     # Dropout(0.5),
     # Dense(len(class_labels), activation='softmax', kernel_regularizer=L1L2(0.0001, 0.0001), bias_regularizer=L2(0.00025))  # Output layer for classification
+
+note: v2 technically worst, but has a good val loss
