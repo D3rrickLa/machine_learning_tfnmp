@@ -49,10 +49,13 @@ All DONE - 140 ✅
 BED - 142 ✅
 DAD - 140 ✅
 DRINK - 140 ✅
-EAT - 204
+EAT - 204 ✅
 ILU - 138 
 MOM - 138 
 MORE - 138 
-NONE - 134 
-POTTY - 140 
-THX - 148
+NONE - 134 ✅
+POTTY - 140 ✅
+THX - 148 ✅
+
+all are at 210, at least 70 are in 1366 x 768, thought different sizing would be good, but switched back
+to 1280 x 720
