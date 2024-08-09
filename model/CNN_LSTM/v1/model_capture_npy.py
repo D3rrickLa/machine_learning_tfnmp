@@ -94,7 +94,7 @@ def save_to_npy(gesture_action, landmark_seq, frame_rate, frame_width, frame_hei
 # adjust the values here to get more or less repeats
 def auto_capture():
     start_auto_capture(
-        num_repeats=70-21,
+        num_repeats=6,
         countdown_sec=2,
         capture_duration=1,
         gesture_action=gesture_action,
@@ -102,9 +102,6 @@ def auto_capture():
         frame_width=frame_width,
         frame_height=frame_height
     )
-def process_frame(frame, results_queue):
-    image, results = mediapipe_detection(frame, holistics)
-    results_queue.put((image, results))
 
 def start_auto_capture(num_repeats, countdown_sec, capture_duration, gesture_action, frame_rate, frame_width, frame_height):
     global landmark_seq    
@@ -120,9 +117,9 @@ def start_auto_capture(num_repeats, countdown_sec, capture_duration, gesture_act
             
             image, results = mediapipe_detection(frame, holistics)
             draw_landmarks(image, results)
+            cv2.imshow("Recording Gestures", image)
             holistic_landmarks = extract_keypoints(results)
             landmark_seq.append(holistic_landmarks)
-            cv2.imshow("Recording Gestures", image)
 
         print("Recording stopped.")
         save_to_npy(gesture_action, landmark_seq, frame_rate, frame_width, frame_height)

@@ -47,8 +47,8 @@ note: v2 technically worst, but has a good val loss
 
 All DONE - 140 ✅
 BED - 142 ✅
-DAD - 140 
-DRINK - 140 
+DAD - 140 ✅
+DRINK - 140 ✅
 EAT - 204
 ILU - 138 
 MOM - 138 
