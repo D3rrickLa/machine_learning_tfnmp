@@ -96,8 +96,8 @@ def save_to_npy(gesture_action, landmark_seq, frame_rate, frame_width, frame_hei
 # adjust the values here to get more or less repeats
 def auto_capture():
     start_auto_capture(
-        num_repeats=70,
-        countdown_sec=3,
+        num_repeats=68,
+        countdown_sec=2,
         capture_duration=1,
         gesture_action=gesture_action,
         frame_rate=frame_rate,
@@ -110,12 +110,12 @@ def process_frame(frame, results_queue):
 
 def start_auto_capture(num_repeats, countdown_sec, capture_duration, gesture_action, frame_rate, frame_width, frame_height):
     global landmark_seq    
-    for _ in range(num_repeats):
+    for n in range(num_repeats):
         countdown(countdown_sec)
         landmark_seq = []  # Reset the landmark sequence
         start_time = time.time()
 
-        for frame_count in range(int(frame_rate * capture_duration)):
+        for _ in range(int(frame_rate * capture_duration)):
             ret, frame = cap.read()
             if not ret:
                 break
@@ -128,12 +128,12 @@ def start_auto_capture(num_repeats, countdown_sec, capture_duration, gesture_act
 
         print("Recording stopped.")
         save_to_npy(gesture_action, landmark_seq, frame_rate, frame_width, frame_height)
-        print(f"total time: {time.time() - start_time}")
+        print(f"total time: {time.time() - start_time}|| count: {n}")
     print("finished")
 
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1336)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 frame_rate = cap.get(cv2.CAP_PROP_FPS)
 frame_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
