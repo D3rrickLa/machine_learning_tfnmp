@@ -43,3 +43,16 @@ will be trying to augment more data along with hp and adding more layers
     # Dense(len(class_labels), activation='softmax', kernel_regularizer=L1L2(0.0001, 0.0001), bias_regularizer=L2(0.00025))  # Output layer for classification
 
 note: v2 technically worst, but has a good val loss
+
+
+All DONE - 140 ✅
+BED - 142 ✅
+DAD - 140 
+DRINK - 140 
+EAT - 204
+ILU - 138 
+MOM - 138 
+MORE - 138 
+NONE - 134 
+POTTY - 140 
+THX - 148

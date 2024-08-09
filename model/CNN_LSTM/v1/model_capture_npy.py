@@ -8,8 +8,6 @@ import cv2
 import numpy as np
 import mediapipe as mp 
 
-
-
 class ProgramShortcuts(Enum):
     quit = ord(u"q")
     start = ord(u"r")
@@ -96,7 +94,7 @@ def save_to_npy(gesture_action, landmark_seq, frame_rate, frame_width, frame_hei
 # adjust the values here to get more or less repeats
 def auto_capture():
     start_auto_capture(
-        num_repeats=68,
+        num_repeats=70-21,
         countdown_sec=2,
         capture_duration=1,
         gesture_action=gesture_action,
