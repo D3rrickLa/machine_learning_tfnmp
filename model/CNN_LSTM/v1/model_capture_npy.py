@@ -123,7 +123,7 @@ def start_auto_capture(num_repeats, countdown_sec, capture_duration, gesture_act
 
         print("Recording stopped.")
         save_to_npy(gesture_action, landmark_seq, frame_rate, frame_width, frame_height)
-        print(f"total time: {time.time() - start_time}|| count: {n}")
+        print(f"total time: {time.time() - start_time}|| count: {n+1}")
     print("finished")
 
 cap = cv2.VideoCapture(0)

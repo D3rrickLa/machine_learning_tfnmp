@@ -74,3 +74,9 @@ class DataframeCreate():
         X_test, y_test = split_data(test_set, target_label, additional_targets)
 
         return X_train, y_train, X_val, y_val, X_test, y_test
+
+class DataframeSave():
+    def save_dataframe(X_train, X_val, X_test) -> None:
+        pd.DataFrame.to_csv(X_train, "X_train_transformed.csv", index=False)
+        pd.DataFrame.to_csv(X_val, "X_val_transformed.csv", index=False)
+        pd.DataFrame.to_csv(X_test, "X_test_transformed.csv", index=False)

@@ -52,7 +52,7 @@ DRINK - 140 ✅
 EAT - 204 ✅
 ILU - 138 ✅
 MOM - 138 ✅
-MORE - 138 
+MORE - 138 ✅
 NONE - 134 ✅
 POTTY - 140 ✅
 THX - 148 ✅
