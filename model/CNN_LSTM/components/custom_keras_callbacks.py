@@ -18,7 +18,7 @@ class CustomEarlyStopping(Callback):
                 self.model.stop_training = True 
                 if self.best_weights is not None: 
                     self.model.set_weights(self.best_weights)
-                    io_utils.print_msg("Loss and Val Loss are too far apart. Restoring model weights")
+                    print("Loss and Val Loss are too far apart. Restoring model weights")
 
         else:
             self.wait = 0 

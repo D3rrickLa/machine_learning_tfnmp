@@ -212,3 +212,111 @@ Test Accuracy: 0.761904776096344
     Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-7))
 ![alt text](image-6.png)
 ![alt text](image-7.png)
+
+Test Loss: 0.8189589977264404
+Test Accuracy: 0.7316017150878906
+NOTE: this isn't really an improvement, but the matrix is much better, the potty is acutally being detected
+    InputLayer(shape=(sequence_length, 1666)),
+    
+    Conv1D(128, kernel_size=3),
+    Activation("relu"),
+    MaxPooling1D(3),
+    BatchNormalization(),
+    Dropout(0.123),
+
+    # Dense(100, kernel_regularizer=L2(0.000001)),
+    # Activation("tanh"),
+    
+    Conv1D(128, kernel_size=3),
+    LayerNormalization(),
+    Activation("relu6"),
+    MaxPooling1D(3),
+    BatchNormalization(),
+
+    Bidirectional(GRU(128, return_sequences=True)),   
+    LayerNormalization(),
+    Activation("tanh"),
+    BatchNormalization(),
+    Dropout(0.1),
+
+    # Bidirectional(GRU(128, return_sequences=True)),   
+    # LayerNormalization(),
+
+    # GRU(96, return_sequences=True),
+    # BatchNormalization(),
+
+    GlobalMaxPooling1D(),  # Instead of Flatten
+    
+    Dense(128, kernel_regularizer=L2(0.0001)),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.5),
+
+    Dense(128, kernel_regularizer=L2(0.0001)),
+    BatchNormalization(),
+
+    Dense(96, bias_regularizer=L2(0.00001)),
+    BatchNormalization(),
+    Activation("tanh"),
+    Dropout(0.08),
+
+    Activation("tanh"),
+    Dropout(0.5),
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-7))
+![alt text](image-8.png)
+![alt text](image-9.png)
+
+
+
+Test Loss: 0.71469646692276
+Test Accuracy: 0.761904776096344
+    InputLayer(shape=(sequence_length, 1666)),
+    
+    Conv1D(128, kernel_size=3),
+    Activation("relu"),
+    MaxPooling1D(3),
+    BatchNormalization(),
+    Dropout(0.153),
+
+    # Dense(100, kernel_regularizer=L2(0.000001)),
+    # Activation("tanh"),
+    
+    Conv1D(128, kernel_size=3),
+    LayerNormalization(),
+    Activation("relu6"),
+    MaxPooling1D(3),
+    BatchNormalization(),
+
+    Bidirectional(GRU(128, return_sequences=True)),   
+    LayerNormalization(),
+    Activation("tanh"),
+    BatchNormalization(),
+    Dropout(0.125),
+
+    # Bidirectional(GRU(128, return_sequences=True)),   
+    # LayerNormalization(),
+
+    # GRU(96, return_sequences=True),
+    # BatchNormalization(),
+
+    GlobalMaxPooling1D(),  # Instead of Flatten
+    
+    Dense(128, kernel_regularizer=L2(0.0001)),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.5),
+
+    Dense(128, kernel_regularizer=L2(0.0001)),
+    BatchNormalization(),
+
+    Dense(96, bias_regularizer=L2(0.00001)),
+    BatchNormalization(),
+    Activation("tanh"),
+    Dropout(0.08),
+
+    Activation("tanh"),
+    Dropout(0.5),
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-7))
+
+![alt text](image-10.png)
+![alt text](image-11.png)
