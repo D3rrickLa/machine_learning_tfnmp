@@ -156,3 +156,59 @@ Test Accuracy: 0.7359307408332825
     Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-7))
 ![alt text](image-4.png)
 ![alt text](image-5.png)
+
+
+
+NOTE: according to the GPT, the GlobalMaxPooling1D shows the model elikes a moer focused and less param-heavy representation of the temporal data
+
+Test Loss: 0.7620430588722229
+Test Accuracy: 0.761904776096344
+ InputLayer(shape=(sequence_length, 1666)),
+    
+    Conv1D(128, kernel_size=3),
+    Activation("relu"),
+    MaxPooling1D(3),
+    BatchNormalization(),
+    Dropout(0.123),
+
+    # Dense(100, kernel_regularizer=L2(0.000001)),
+    # Activation("tanh"),
+    
+    Conv1D(128, kernel_size=3),
+    LayerNormalization(),
+    Activation("relu"),
+    MaxPooling1D(3),
+    BatchNormalization(),
+
+    Bidirectional(GRU(128, return_sequences=True)),   
+    LayerNormalization(),
+    Activation("tanh"),
+    BatchNormalization(),
+    Dropout(0.01),
+
+    # Bidirectional(GRU(128, return_sequences=True)),   
+    # LayerNormalization(),
+
+    # GRU(96, return_sequences=True),
+    # BatchNormalization(),
+
+    GlobalMaxPooling1D(),  # Instead of Flatten
+    
+    Dense(128, kernel_regularizer=L2(0.0001)),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.5),
+
+    Dense(128, kernel_regularizer=L2(0.0001)),
+    BatchNormalization(),
+
+    Dense(96, bias_regularizer=L2(0.00001)),
+    BatchNormalization(),
+    Activation("tanh"),
+    Dropout(0.08),
+
+    Activation("tanh"),
+    Dropout(0.5),
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-7))
+![alt text](image-6.png)
+![alt text](image-7.png)
