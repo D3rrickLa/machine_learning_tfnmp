@@ -325,7 +325,7 @@ Test Accuracy: 0.761904776096344
 model quatre v3 has the things I like, not as good as the previous best, but the 
 Test Loss: 0.7827021479606628
 Test Accuracy: 0.7402597665786743
-    Conv1D(128, kernel_size=3),
+Conv1D(128, kernel_size=3),
     Activation("relu6"),
     MaxPooling1D(3),
     BatchNormalization(),
@@ -371,3 +371,62 @@ Test Accuracy: 0.7402597665786743
 
 ![alt text](image-12.png)
 ![alt text](image-13.png)
+
+Test Loss: 1.034582495689392
+Test Accuracy: 0.6190476417541504
+going forward, we have doubled the training data, different model because the current doesn't work with that much data...
+
+
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Conv1D(256, kernel_size=3),
+    LayerNormalization(),
+    Activation("relu"),
+    MaxPooling1D(3),
+    BatchNormalization(),
+    Dropout(0.153),
+
+    Conv1D(128, kernel_size=3),
+    LayerNormalization(),
+    Activation("relu"),
+    MaxPooling1D(3),
+    BatchNormalization(),
+    Dropout(0.035),
+
+    Bidirectional(GRU(128, return_sequences=True)),   
+    LayerNormalization(),
+    Activation("tanh"),
+    BatchNormalization(),
+    Dropout(0.135),
+
+    Bidirectional(GRU(128, return_sequences=True)),   
+    LayerNormalization(),
+    Activation("tanh"),
+    BatchNormalization(),
+    Dropout(0.135),
+
+    GlobalMaxPooling1D(),
+
+    Dense(256, kernel_regularizer=L2(1e-4)),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.5),
+
+    Dense(256, kernel_regularizer=L2(1e-4)),
+    BatchNormalization(),
+    Activation("tanh"),
+    Dropout(0.55),
+
+    Dense(128),
+    BatchNormalization(),
+    Activation("tanh"),
+    Dropout(0.08),
+
+    Dense(64, kernel_regularizer=L2(1e-3)),
+    BatchNormalization(),
+    Activation("tanh"),
+    Dropout(0.2),
+    
+    Activation("tanh"),
+    Dropout(0.5),
+    Dense(len(class_labels), activation="softmax", kernel_regularizer=L2(1e-7))
