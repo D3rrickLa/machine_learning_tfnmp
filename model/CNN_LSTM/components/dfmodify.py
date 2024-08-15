@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 class DataframeModify():
-    def augment_model(df: pd.DataFrame, y_df: pd.DataFrame, noise_level=0.0, translation_vector=None, rotation_angle=0.0) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def augment_model(df: pd.DataFrame, y_df: pd.DataFrame, noise_level=0.0, translation_vector=None, rotation_angle=0.0, duplicate_y=False) -> Tuple[pd.DataFrame, pd.DataFrame]:
         df_augmented = df.copy()
 
         landmark_columns = [f"{col}" for col in df_augmented.columns if col.startswith(("hx", "hy", "hz", "px", "py", "pz", "lx", "ly", "lz", "rx", "ry", "rz"))]
@@ -46,8 +46,15 @@ class DataframeModify():
         if "gesture_index" in df_augmented.columns:
             cur_time = time.time_ns()
             df_augmented["gesture_index"] += cur_time
+        
+        y_df_combined = None
+        if duplicate_y:
+            y_df_combined = pd.concat([y_df, y_df]).reset_index(drop=True)
+        else:
+            print("duplicated y is set to False")
+            y_df_combined = y_df.reset_index(drop=True)
 
-        return df_augmented, pd.concat([y_df, y_df]).reset_index(drop=True)
+        return df_augmented, y_df_combined
 
     @staticmethod
     def transform_to_sequenceses(df: pd.DataFrame, sequence_length, target: str, additional_targets: list = None) -> Tuple[np.ndarray, np.ndarray]:

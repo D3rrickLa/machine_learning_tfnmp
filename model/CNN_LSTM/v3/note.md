@@ -325,7 +325,7 @@ Test Accuracy: 0.761904776096344
 model quatre v3 has the things I like, not as good as the previous best, but the 
 Test Loss: 0.7827021479606628
 Test Accuracy: 0.7402597665786743
-Conv1D(128, kernel_size=3),
+    Conv1D(128, kernel_size=3),
     Activation("relu6"),
     MaxPooling1D(3),
     BatchNormalization(),
