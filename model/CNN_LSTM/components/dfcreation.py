@@ -77,6 +77,10 @@ class DataframeCreate():
 
 class DataframeSave():
     def save_dataframe(X_train, X_val, X_test) -> None:
+        print("Saving files...")
         pd.DataFrame.to_csv(X_train, "X_train_transformed.csv.gz", index=False, compression="gzip")
+        print("done")
         pd.DataFrame.to_csv(X_val, "X_val_transformed.csv.gz", index=False, compression="gzip")
+        print("done")
         pd.DataFrame.to_csv(X_test, "X_test_transformed.csv.gz", index=False, compression="gzip")
+        print("done")
