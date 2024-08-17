@@ -430,3 +430,38 @@ going forward, we have doubled the training data, different model because the cu
     Activation("tanh"),
     Dropout(0.5),
     Dense(len(class_labels), activation="softmax", kernel_regularizer=L2(1e-7))
+
+so this model got the following:
+Test Loss: 1.135124921798706
+Test Accuracy: 0.6796537041664124
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Flatten(),
+
+    Dense(64, kernel_regularizer=L2(1e-5)),
+   
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-6),  bias_regularizer=L2(1e-5))
+![alt text](image-14.png)
+![alt text](image-15.png)
+so like the graph is good, but that loss. well the graph is good in only some parts
+
+
+
+yooooooo
+Test Loss: 0.5579075217247009
+Test Accuracy: 0.8311688303947449
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    GRU(126, kernel_regularizer=L2(1e-5)),
+    BatchNormalization(),
+    Activation("relu"),
+    Dropout(0.5),
+
+    Dense(64, kernel_regularizer=L2(1e-5)),
+   
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-6),  bias_regularizer=L2(1e-5))
+
+![alt text](image-16.png)
+![alt text](image-17.png)
+
+really good... almost too good, I don't trust it. Will do a Kfold style of validation

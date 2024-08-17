@@ -126,9 +126,12 @@ y_train_precombined = pd.concat([y_train, y_train_augmented_1, y_train_augmented
 
 gc.collect()
 
-X_train_combined, y_train_combined = DataframeModify.augment_model(X_train_precombined, y_train_precombined, noise_level=0.01, translation_vector=[-0.21, -0.3, -0.01], rotation_angle=-23)
-gc.collect()
+X_train_augmented_4, y_train_augmented_4 = DataframeModify.augment_model(X_train_precombined, y_train_precombined, noise_level=0.01, translation_vector=[-0.21, -0.3, -0.01], rotation_angle=-23)
 
+X_train_combined = pd.concat([X_train_precombined, X_train_augmented_4], axis=0, ignore_index=True)
+y_train_combined = pd.concat([y_train_precombined, y_train_augmented_4], axis=0, ignore_index=True)
+
+gc.collect()
 print("finish augmentation")
 
 X_train_transformed, X_val_transformed, X_test_transformed = None, None, None
