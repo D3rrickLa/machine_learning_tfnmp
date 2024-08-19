@@ -464,4 +464,29 @@ Test Accuracy: 0.8311688303947449
 ![alt text](image-16.png)
 ![alt text](image-17.png)
 
-really good... almost too good, I don't trust it. Will do a Kfold style of validation
+really good... almost too good, I don't trust it. Will do a Kfold style of validation. TODO: Might try an ensemble 
+
+Test Loss: 0.4607835114002228
+Test Accuracy: 0.8787878751754761
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Conv1D(160, 3, activation="relu6"),
+    BatchNormalization(),
+
+    GRU(128, kernel_regularizer=L2(1e-5)),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.5),
+
+
+    Dense(64, kernel_regularizer=L2(1e-5)),
+    Activation("tanh"),
+    Dropout(0.165),
+
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-6),  bias_regularizer=L2(1e-5))
+
+![alt text](image-18.png)
+![alt text](image-19.png)
+
+this model is really good, potty finally got some points. None did take a hit though
+this is with the model_5trois.keras file
