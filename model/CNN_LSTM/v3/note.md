@@ -515,3 +515,27 @@ Test Accuracy: 0.9090909361839294
 ![alt text](image-21.png)
 
 model while loss is bad, has a better confusion matrix then the others. save on the 5_quatre keras model
+
+Test Loss: 0.998706579208374
+Test Accuracy: 0.9307359457015991
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Conv1D(170, 4, activation="relu6", kernel_regularizer=L2(1e-2)),
+    BatchNormalization(),
+    MaxPooling1D(3),
+    Dropout(0.055),
+
+    GRU(128, kernel_regularizer=L2(1e-5)),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.5),
+
+    Dense(90, kernel_regularizer=L2(1e-4)),
+    Activation("tanh"),
+    Dropout(0.165),
+
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-6),  bias_regularizer=L2(1e-5))
+![alt text](image-22.png)
+![alt text](image-23.png)
+
+model performed slightly better, could honestly be margin or error but it is better
