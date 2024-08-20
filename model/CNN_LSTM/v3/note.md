@@ -490,3 +490,28 @@ Test Accuracy: 0.8787878751754761
 
 this model is really good, potty finally got some points. None did take a hit though
 this is with the model_5trois.keras file
+
+Test Loss: 1.0815975666046143
+Test Accuracy: 0.9090909361839294
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Conv1D(164, 4, activation="relu6", kernel_regularizer=L2(1e-2),),
+    BatchNormalization(),
+    MaxPooling1D(2),
+    Dropout(0.065),
+
+    GRU(128, kernel_regularizer=L2(1e-5)),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.5),
+
+    Dense(64, kernel_regularizer=L2(1e-4)),
+    Activation("tanh"),
+    Dropout(0.165),
+
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-6),  bias_regularizer=L2(1e-5))
+
+![alt text](image-20.png)
+![alt text](image-21.png)
+
+model while loss is bad, has a better confusion matrix then the others. save on the 5_quatre keras model
