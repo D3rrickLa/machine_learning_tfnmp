@@ -539,3 +539,4 @@ Test Accuracy: 0.9307359457015991
 ![alt text](image-23.png)
 
 model performed slightly better, could honestly be margin or error but it is better
+NOTE: after doing some reading, and GPT work. there's this thing called natural logarithm (ln) and the closer that number our loss is, means the we are essentially performing a random guess. in our case since we have 11 classes, the ln is ~2.4. Our loss here is closer to that 2.4 at 1
