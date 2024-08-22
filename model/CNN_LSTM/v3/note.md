@@ -540,3 +540,33 @@ Test Accuracy: 0.9307359457015991
 
 model performed slightly better, could honestly be margin or error but it is better
 NOTE: after doing some reading, and GPT work. there's this thing called natural logarithm (ln) and the closer that number our loss is, means the we are essentially performing a random guess. in our case since we have 11 classes, the ln is ~2.4. Our loss here is closer to that 2.4 at 1
+
+Test Loss: 0.5885689854621887
+Test Accuracy: 0.9004328846931458
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Conv1D(170, 3, activation="tanh", kernel_regularizer=L2(1e-3)),
+    BatchNormalization(),
+    MaxPooling1D(2),
+
+    Conv1D(340, 3, activation="tanh"),
+    MaxPooling1D(2),
+    Dropout(0.055),
+
+    GRU(128, kernel_regularizer=L2(1e-5), return_sequences=True),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.5),
+
+    GRU(64),
+    BatchNormalization(),
+
+    Dense(64, kernel_regularizer=L2(1e-4)),
+    Activation("tanh"),
+    Dropout(0.165),
+
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L2(1e-6),  bias_regularizer=L2(1e-5))
+![alt text](image-24.png)
+![alt text](image-25.png)
+
+This model is substantially better than the last. While we lose some accuracy with the problem gestures, that loss is way better
