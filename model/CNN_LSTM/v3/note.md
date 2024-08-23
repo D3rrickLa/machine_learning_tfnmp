@@ -570,3 +570,36 @@ Test Accuracy: 0.9004328846931458
 ![alt text](image-25.png)
 
 This model is substantially better than the last. While we lose some accuracy with the problem gestures, that loss is way better
+
+Test Loss: 0.7382153868675232
+Test Accuracy: 0.887445867061615
+ InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Conv1D(170, 3, activation="relu6", kernel_regularizer=L1L2(1e-5, 1e-3)),
+    BatchNormalization(),
+    MaxPooling1D(2),
+
+    Conv1D(340, 3, activation="tanh"),
+    MaxPooling1D(2),
+    Dropout(0.055),
+
+    Conv1D(680, 3, activation="tanh"),
+    Dropout(0.1),
+
+    Bidirectional(GRU(128, kernel_regularizer=L2(1e-4))),
+    BatchNormalization(),
+    Activation("relu6"),
+    Dropout(0.5),
+
+    Dense(96),
+    BatchNormalization(),
+
+    Dense(64, kernel_regularizer=L2(1e-4)),
+    Activation("tanh"),
+    Dropout(0.2),
+
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L1L2(1e-5, 1e-6),  bias_regularizer=L2(1e-5))
+![alt text](image-26.png)
+![alt text](image-27.png)
+
+This model has potential, but like it's the learning rate that is causing a problem. gets too low - local minima 
