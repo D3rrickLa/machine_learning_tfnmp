@@ -603,3 +603,78 @@ Test Accuracy: 0.887445867061615
 ![alt text](image-27.png)
 
 This model has potential, but like it's the learning rate that is causing a problem. gets too low - local minima 
+
+Test Loss: 0.6565546989440918
+Test Accuracy: 0.9090909361839294
+model = Sequential([
+    # NOTE: if we where to just run this as is, we will get an error because of our Y datasets
+    # They are a 2D shape, not the 1D it is expecting
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Conv1D(170, 3, activation="leaky_relu", kernel_regularizer=L1L2(1e-7, 1e-3)),
+    BatchNormalization(),
+    MaxPooling1D(2),
+
+    Conv1D(340, 3, activation="leaky_relu"),
+    MaxPooling1D(2),
+    Dropout(0.1),
+
+    Conv1D(680, 3, activation="tanh"),
+
+    Bidirectional(GRU(128, kernel_regularizer=L2(1e-4))),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.35),
+
+    Dense(96),
+    BatchNormalization(),
+
+    Dense(64, kernel_regularizer=L2(1e-4)),
+    Activation("tanh"),
+    Dropout(0.25),
+
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L1L2(1e-7, 1e-6),  bias_regularizer=L2(1e-6))
+])
+
+model.compile(optimizer=AdamW(learning_rate=1.0e-4, weight_decay=1e-5, clipnorm=1.0), loss='categorical_crossentropy', metrics=['accuracy'])
+![alt text](image-28.png)
+![alt text](image-29.png)
+model 8 btw
+
+
+model 9
+Test Loss: 0.6769238710403442
+Test Accuracy: 0.9090909361839294
+model = Sequential([
+    # NOTE: if we where to just run this as is, we will get an error because of our Y datasets
+    # They are a 2D shape, not the 1D it is expecting
+    InputLayer(shape=(sequence_length, X_train_sequences.shape[2])),
+    
+    Conv1D(170, 3, activation="leaky_relu", kernel_regularizer=L1L2(1e-7, 1e-3)),
+    BatchNormalization(),
+    MaxPooling1D(2),
+
+    Conv1D(340, 3, activation="leaky_relu"),
+    MaxPooling1D(2),
+    Dropout(0.2),
+
+    Conv1D(340, 3, activation="tanh"),
+
+    Bidirectional(GRU(128, kernel_regularizer=L2(1e-4))),
+    BatchNormalization(),
+    Activation("leaky_relu"),
+    Dropout(0.35),
+
+    Dense(96),
+    BatchNormalization(),
+
+    Dense(64, kernel_regularizer=L2(1e-4)),
+    Activation("tanh"),
+    Dropout(0.25),
+
+    Dense(len(class_labels), activation='softmax', kernel_regularizer=L1L2(1e-7, 1e-6),  bias_regularizer=L2(1e-6))
+])
+
+model.compile(optimizer=AdamW(learning_rate=1.0e-4, weight_decay=1e-5, clipnorm=1.0), loss='categorical_crossentropy', metrics=['accuracy'])
+![alt text](image-30.png)
+![alt text](image-31.png)
