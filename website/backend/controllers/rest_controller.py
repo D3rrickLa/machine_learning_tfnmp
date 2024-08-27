@@ -17,7 +17,7 @@ def index():
 
 
 def main():
-    config = uvicorn.Config("processor:app", host="localhost", port=8000, reload=True)
+    config = uvicorn.Config("rest_controller:app", host="localhost", port=8000, reload=True)
     sever  = uvicorn.Server(config)
     sever.run()
 

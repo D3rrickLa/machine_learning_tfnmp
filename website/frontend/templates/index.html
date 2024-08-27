@@ -3,11 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Baby Sign Language - Welcome</title>
 </head>
 <body>
     <h1>Hello World!</h1>
     <div>
+        <a href="{{url_for('getTable')}}"><h2>HIIIII</h2></a>
     </div>
+    <div>
+        <h3>Camera Stream</h3>
+        <video id="video" width="1280" height="720" autoplay></video>
+    </div>
+
+    <script>
+        const video = document.getElementById("video")
+        if(navigator.mediaDevices.getUserMedia({video: true}).then(function(stream) {
+            video.srcObject = stream; 
+            video.play();
+        }));
+
+        window.addEventListener('beforeunload', function(){
+            const stream = video.srcObject; 
+            const tracks = stream.getTracks();
+            tracks.forEach(function(track){
+                track.stop();
+            });
+        });
+    </script>
 </body>
 </html>
