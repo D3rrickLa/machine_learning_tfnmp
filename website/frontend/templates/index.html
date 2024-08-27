@@ -3,32 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baby Sign Language - Welcome</title>
+    <title>Client App - Welcome</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
 </head>
 <body>
-    <h1>Hello World!</h1>
     <div>
-        <a href="{{url_for('getTable')}}"><h2>HIIIII</h2></a>
+        <h1>Camera Stream</h1>
+        <video id="video" width="640" height="480" autoplay></video>
     </div>
     <div>
-        <h3>Camera Stream</h3>
-        <video id="video" width="1280" height="720" autoplay></video>
+        <button id="startButton">On</button>
+        <button id="stopButton">Off</button>
     </div>
 
-    <script>
-        const video = document.getElementById("video")
-        if(navigator.mediaDevices.getUserMedia({video: true}).then(function(stream) {
-            video.srcObject = stream; 
-            video.play();
-        }));
+    <script type="text/javascript">
+        let mediaRecoder; 
+        let ws; 
+        let stream;
 
-        window.addEventListener('beforeunload', function(){
-            const stream = video.srcObject; 
-            const tracks = stream.getTracks();
-            tracks.forEach(function(track){
-                track.stop();
-            });
-        });
+        function startStreaming() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error("Media devices API is not supported");
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({video: true})
+            .then(stream => {
+                const video = document.getElementById("video")
+                video.srcObject = stream; 
+    
+                ws = new WebSocket("ws://localhost:8000/ws");
+                
+                ws.onopen = () => {
+                    console.log("WebSocket connection opened."); 
+                    mediaRecoder = new MediaRecorder(stream);
+
+                    mediaRecoder.ondataavailable=  function(event) {
+                        if (event.data.size > 0 && ws && ws.readyState == WebSocket.OPEN) {
+                            ws.send(event.data)
+                        }
+                    };
+
+                    mediaRecoder.start(100)
+                    
+                };
+
+                ws.onclose = () => {
+                    console.log("WebSocket connection closed.")
+                };
+
+                ws.onerror = (error) => {
+                        console.error("WebSocket error:", error);
+                };
+                
+            })
+            .catch(error => {
+                console.error("error accessing media devices", error);
+            })
+        }
+
+        function stopStreaming() {
+            if(mediaRecoder) {
+                mediaRecoder.stop();
+                mediaRecoder = null; 
+            }
+
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+
+            if (stream) { 
+                let tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                stream = null;
+            }
+        }
+
+        // Start streaming on page load
+        window.onload = startStreaming;
+
+        // Clean up on page unload
+        window.onbeforeunload = stopStreaming;
+
     </script>
 </body>
 </html>
