@@ -703,3 +703,6 @@ model = Sequential([
 model.compile(optimizer=AdamW(learning_rate=1.0e-4, weight_decay=1e-5, clipnorm=1.0), loss='categorical_crossentropy', metrics=['accuracy'])
 ![alt text](images/image-32.png)
 ![alt text](images/image-33.png)
+
+
+so this is probably the final stable model, 11 v3 - didn't save it here, but basically the same as above but with a lower test loss. The high overfitting can lead to non-optimally performance, but it has high acc so it should be fine - monitor it still (problems seems to be from the None side which is fine)
