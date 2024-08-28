@@ -10,82 +10,12 @@
     <div>
         <h1>Camera Stream</h1>
         <video id="video" width="640" height="480" autoplay></video>
+        <canvas id="canvas"></canvas>
     </div>
     <div>
         <button id="startButton">On</button>
         <button id="stopButton">Off</button>
     </div>
-
-    <script type="text/javascript">
-        let mediaRecoder; 
-        let ws; 
-        let stream;
-
-        function startStreaming() {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                console.error("Media devices API is not supported");
-                return;
-            }
-
-            navigator.mediaDevices.getUserMedia({video: true})
-            .then(stream => {
-                const video = document.getElementById("video")
-                video.srcObject = stream; 
-    
-                ws = new WebSocket("ws://localhost:8000/ws");
-                
-                ws.onopen = () => {
-                    console.log("WebSocket connection opened."); 
-                    mediaRecoder = new MediaRecorder(stream);
-
-                    mediaRecoder.ondataavailable=  function(event) {
-                        if (event.data.size > 0 && ws && ws.readyState == WebSocket.OPEN) {
-                            ws.send(event.data)
-                        }
-                    };
-
-                    mediaRecoder.start(100)
-                    
-                };
-
-                ws.onclose = () => {
-                    console.log("WebSocket connection closed.")
-                };
-
-                ws.onerror = (error) => {
-                        console.error("WebSocket error:", error);
-                };
-                
-            })
-            .catch(error => {
-                console.error("error accessing media devices", error);
-            })
-        }
-
-        function stopStreaming() {
-            if(mediaRecoder) {
-                mediaRecoder.stop();
-                mediaRecoder = null; 
-            }
-
-            if (ws) {
-                ws.close();
-                ws = null;
-            }
-
-            if (stream) { 
-                let tracks = stream.getTracks();
-                tracks.forEach(track => track.stop());
-                stream = null;
-            }
-        }
-
-        // Start streaming on page load
-        window.onload = startStreaming;
-
-        // Clean up on page unload
-        window.onbeforeunload = stopStreaming;
-
-    </script>
+    <script src="/website/frontend/static/js/main.js"></script>
 </body>
 </html>
