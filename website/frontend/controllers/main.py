@@ -1,5 +1,6 @@
 import io
 import os
+import time
 import cv2
 from fastapi.staticfiles import StaticFiles
 import numpy as np
@@ -55,31 +56,39 @@ async def websocket_point_2(websocket: WebSocket):
     await websocket.accept()
     frame_counter = 0 
     buffer = bytearray()
+    frames = []
     try:
         while True: 
             data = await websocket.receive_bytes()   
             buffer.extend(data)
 
             width, height = 640, 480 
-
             expected_size = width * height * 3 
 
-            if len(buffer) >= expected_size:
-                image_stream = io.BytesIO(buffer)
+            # if len(buffer) >= expected_size:
+            #     image_stream = io.BytesIO(buffer)
 
-                image = img.frombytes('RGB', (width, height), bytes(buffer[:expected_size]))
+            #     image = img.frombytes('RGB', (width, height), bytes(buffer[:expected_size]))
 
-                frame_counter += 1 
-                jpeg_filename = os.path.join(save_dir, f"frame_{frame_counter:04d}.jpeg")
-                image.save(jpeg_filename)
-                # Clear buffer after successful write
+            #     frame_counter += 1 
+            #     jpeg_filename = os.path.join(save_dir, f"frame_{frame_counter:04d}.jpeg")
+            #     image.save(jpeg_filename)
+            #     # Clear buffer after successful write
+            #     buffer = buffer[expected_size:]
+
+            if len(buffer) >= expected_size: 
+                image = img.frombytes("RGB", (width, height), bytes(buffer[:expected_size]))
+                frame = np.array(image)
+                frames.append(frame)
+                
+                frame_counter += 1
                 buffer = buffer[expected_size:]
 
-
-            
-            else:
-                print("waiting for more data")
-
+                # NOTE: it can't be frames length because data might really be a single still image
+                if len(frames) == 30: 
+                    video_fname = os.path.join(save_dir, f"frame_{frame_counter//30:04d}_{time.time_ns()}.mp4")
+                    save_video(frames, video_fname, width, height)
+                    frames = []
     
     except WebSocketDisconnect:
         print("Websocket was disconnected.")
@@ -89,6 +98,19 @@ async def websocket_point_2(websocket: WebSocket):
     finally:
         if not websocket.client_state == sws.WebSocketState.DISCONNECTED:
             await websocket.close()
+
+def save_video(frames, filename, width, height, fps=30):
+    """
+    Save a list of frames as an MP4 video using OpenCV.
+    """
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_writer = cv2.VideoWriter(filename, fourcc, fps, (width, height))
+
+    for frame in frames:
+        video_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))  # Convert RGB to BGR for OpenCV
+
+    video_writer.release()
+    print(f"Saved video {filename}")
 
 def main():
     config = uvicorn.Config("main:app", host="localhost", port=8080, reload=True)

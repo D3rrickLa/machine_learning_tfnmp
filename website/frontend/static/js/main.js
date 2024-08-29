@@ -49,7 +49,7 @@ function startStreaming() {
                 }
             };
             
-            mediaRecoder.start(100)
+            mediaRecoder.start(10)
             
         };
 

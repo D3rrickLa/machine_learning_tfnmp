@@ -38,6 +38,9 @@ async def process_video(request: Request):
     cv2.imwrite(frame_filename, frame)
     return {"message" : "Video processed successfully"}
 
+
+
+
 def main():
     config = uvicorn.Config("rest_controller:app", host="localhost", port=8001, reload=True)
     sever  = uvicorn.Server(config)
