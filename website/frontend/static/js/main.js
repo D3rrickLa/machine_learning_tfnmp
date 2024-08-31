@@ -23,7 +23,7 @@ function startStreaming() {
             console.log("WebSocket connection opened."); 
             mediaRecoder = new MediaRecorder(stream);
             
-            mediaRecoder.ondataavailable=  function(event) {
+            mediaRecoder.ondataavailable = function(event) {
                 if (event.data.size > 0 && ws && ws.readyState == WebSocket.OPEN) {                    
                     var canvas = document.getElementById("canvas")
                     canvas.width = video.videoWidth || 640; // Set default width if videoWidth is not available
@@ -49,7 +49,7 @@ function startStreaming() {
                 }
             };
             
-            mediaRecoder.start(10)
+            mediaRecoder.start(66.66)
             
         };
 
