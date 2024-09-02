@@ -1,7 +1,7 @@
 let mediaRecoder; 
 let ws; 
 let stream;
-
+let isStreaming = true;
 
 
 function startStreaming() {
@@ -67,13 +67,28 @@ function startStreaming() {
     })
 }
 
+function stopSignal() {
+    fetch("http://localhost:8000/stop_processing", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({command: "stop"})
+    })
+    .then(response => response.json())
+    .then(data => console.log(`Stop signal response: ${data.message}`))
+    .catch(error => console.error(`Error sending stop signal: ${error}`));
+}
+
 function stopStreaming() {
+    
     if(mediaRecoder) {
         mediaRecoder.stop();
         mediaRecoder = null; 
     }
 
     if (ws) {
+        stopSignal();
         ws.close();
         ws = null;
     }

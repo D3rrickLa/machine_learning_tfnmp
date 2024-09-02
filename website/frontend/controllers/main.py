@@ -1,20 +1,20 @@
 import json
+import socket
 from fastapi.staticfiles import StaticFiles
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 import websockets
 from fastapi.templating import Jinja2Templates 
-from fastapi.responses import FileResponse, HTMLResponse
-import requests 
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+import asyncio
 from starlette import websockets as sws
-from PIL import Image as img
-import zlib 
+
 
 app = FastAPI(debug=True)
 app.mount("/website/frontend/static", StaticFiles(directory=r"./website/frontend/static"), name="static")
 templates = Jinja2Templates(directory=r"./website/frontend/templates")
-
+STOP_PROCESSING = False
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
@@ -28,36 +28,30 @@ async def favicon():
 @app.websocket("/ws2")
 async def websocket_point_2(websocket: WebSocket):
     await websocket.accept()
+    global STOP_PROCESSING
     buffer = bytearray()
-    lt_buffer= bytearray()
-    frames = []
     width, height = 640, 480 
     expected_size = width * height * 3 
-    server_uri = "http://localhost:8001/process_video"
+    max_buffer_size = expected_size * 30 * 1
+    server_uri = "ws://localhost:8001/process_video"
+    
+    tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_socket.connect(('localhost', 8888))  # TCP server address and port
     try:
         while True: 
             data = await websocket.receive_bytes()   
+            if STOP_PROCESSING:
+                buffer.clear()
+                print("buffer cleared")
+                STOP_PROCESSING = False
+                break
+            
             buffer.extend(data)
-            lt_buffer.extend(data)
 
-            if len(buffer) >= expected_size: 
-                image = img.frombytes("RGB", (width, height), bytes(buffer[:expected_size]))
-                frame = np.array(image)
-                frames.append(frame)
-                
-                buffer = buffer[expected_size:] # removes the processed frame from the buffer?
-
-                # NOTE: it can't be frames length because data might really be a single still image
-                if len(lt_buffer) // expected_size == 30: 
-                    print("data full, sending")
-                    compressed_data = zlib.compress(json.dumps([f.tolist() for f in frames]).encode())
-                    print(len(compressed_data))
-                    response = requests.post(server_uri, data=compressed_data, headers={'Content-Encoding': 'gzip'})
-                    print(response.text)
-                    
-                    frames = []
-                    lt_buffer.clear()
-    
+            if len(buffer) >= max_buffer_size:
+                tcp_socket.sendall(buffer)
+                buffer = buffer[max_buffer_size:]
+             
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -65,11 +59,16 @@ async def websocket_point_2(websocket: WebSocket):
     finally:
         if not websocket.client_state == sws.WebSocketState.DISCONNECTED:
             await websocket.close()
+        tcp_socket.close()
 
-
+@app.post("/stop_processing")
+async def stop_processing():
+    global STOP_PROCESSING
+    STOP_PROCESSING = True
+    return JSONResponse(content={"message": "Processing stopped"}, status_code=200)
 
 def main():
-    config = uvicorn.Config("main:app", host="localhost", port=8080, reload=True)
+    config = uvicorn.Config("main:app", host="localhost", port=8000, reload=True)
     sever  = uvicorn.Server(config)
     sever.run()
 

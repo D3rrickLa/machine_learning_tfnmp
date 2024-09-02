@@ -20,15 +20,27 @@ save_dir = r"./website/backend/saved_images"
 def index():
     return {"message" : "server is working properly"}
 
-@app.post("/process_video")
-async def process(request: Request):
-    try:
-        data = await request.body()
-        print(len(data))
-        return ("got message")
-    except Exception as e: 
-        print(f"Error: {e}") 
+@app.websocket("/process_video")
+async def process(websocket: WebSocket):
+    await websocket.accept()
 
+    try:
+        # Receive data from the WebSocket connection
+        data = await websocket.receive_bytes()
+        print(f"Received data of length: {len(data)}")
+        
+        # Send a successful response back to the client
+        response_message = "Successful"
+        await websocket.send_text(response_message)
+
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"Backend Error: {e}")
+    finally:
+        if not websocket.client_state == sws.WebSocketState.DISCONNECTED:
+            await websocket.close()
 
 def main():
     config = uvicorn.Config("rest_controller:app", host="localhost", port=8001, reload=True)
