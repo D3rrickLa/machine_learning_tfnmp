@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client App - Welcome</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
+</head>
+<body>
+    <div>
+        <h1>Camera Stream</h1>
+        <video id="video" width="640" height="480" autoplay></video>
+        <canvas id="canvas"></canvas>
+    </div>
+    <div>
+        <button id="startButton">On</button>
+        <button id="stopButton">Off</button>
+    </div>
+    <script src="/website/frontend/static/js/main.js"></script>
+</body>
+</html>
