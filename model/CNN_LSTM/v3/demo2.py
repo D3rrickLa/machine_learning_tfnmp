@@ -74,29 +74,25 @@ def predict(landmark_seq, frame_rate, frame_width, frame_height, gesture_action=
 
     df = pd.DataFrame(data, columns=header)
     
-    csv_buffer = io.StringIO()
-    df.to_csv(csv_buffer, columns=df.columns.tolist(), index=False)
-    csv_buffer.seek(0)
-
-    input_df= pd.read_csv(csv_buffer)
-    
-    landmark_columns = [f"{col}" for col in input_df.columns if col.startswith(("hx", "hy", "hz", "px", "py", "pz", "lx", "ly", "lz", "rx", "ry", "rz"))]
+    landmark_columns = [f"{col}" for col in df.columns if col.startswith(("hx", "hy", "hz", "px", "py", "pz", "lx", "ly", "lz", "rx", "ry", "rz"))]
     categorical_columns = ["gesture_index"]
-    numerical_columns = ["frame", "frame_rate", "frame_width", "frame_height"] + [f"{col}" for col in input_df.columns if col.startswith("pose_visibility")]
-    time_series_columns = landmark_columns  # + derived_features   
+    numerical_columns = ["frame", "frame_rate", "frame_width", "frame_height"] + [f"{col}" for col in df.columns if col.startswith("pose_visibility")]
 
-    all_columns = time_series_columns + numerical_columns + categorical_columns
-
-    X_new_pre = preprocessor.transform(input_df[all_columns])
+    X_new_pre = preprocessor.transform(df[landmark_columns + numerical_columns + categorical_columns])
     X_new_pre.drop(columns="remainder__gesture_index", inplace=True)
-    print(X_new_pre.shape)
+    
     X_new = np.reshape(X_new_pre, (1, X_new_pre.shape[0], X_new_pre.shape[1]))
     pred = model.predict(X_new, verbose=0)
 
     pred_labels = [class_labels[np.argmax(p)] for p in pred]
+    formatted_predictions = [
+        f"{class_labels[i]}: {prob:.2f}" for i, prob in enumerate(pred[0] * 100)
+    ]
+    # Join and print the results
+    output_string = ", ".join(formatted_predictions)
+    print(output_string)
 
     gesture_counts = Counter(pred_labels)
-
     most_common_gesture = gesture_counts.most_common(1)[0][0]
 
     return most_common_gesture
@@ -179,3 +175,5 @@ while cap.isOpened():
 
 cap.release()
 cv2.destroyAllWindows()
+
+# NOTE there is a distance problem, at 3 feet, most of them work, at 5 feet it many don't work - potty for example. working space was like 2 feet, but 3 feet is teh sweet spot
