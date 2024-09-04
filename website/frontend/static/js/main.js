@@ -17,7 +17,7 @@ function startStreaming() {
         
         
         
-        ws = new WebSocket("ws://localhost:8000/ws2");
+        ws = new WebSocket("ws://localhost:8000/ws");
         
         ws.onopen = () => {
             console.log("WebSocket connection opened."); 
@@ -49,7 +49,7 @@ function startStreaming() {
                 }
             };
             
-            mediaRecoder.start(66.66)
+            mediaRecoder.start(33.33)
             
         };
 
