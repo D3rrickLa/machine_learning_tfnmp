@@ -1,4 +1,5 @@
 import asyncio
+import aiohttp
 import httpx
 import requests
 import uvicorn
@@ -8,7 +9,6 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates 
 from starlette import websockets
-
 app = FastAPI(debug=True)
 app.mount("/website/frontend/static", StaticFiles(directory=r"./website/frontend/static"), name="static")
 templates = Jinja2Templates(directory=r"./website/frontend/templates")
@@ -26,20 +26,22 @@ async def favicon():
 async def websocket_point_2(websocket: WebSocket):
     global STOP_PROCESSING 
     await websocket.accept()
-    bufferarr = bytearray()
+    bufferarr = bytearray() 
 
     try:
         while True:
             data = await websocket.receive_bytes()
             bufferarr.extend(data)    
-     
+
             if STOP_PROCESSING:
                 STOP_PROCESSING = False
                 bufferarr.clear()
                 break
-
+        
             if len(bufferarr) >= 921600 * 30:
-                requests.post(url="http://localhost:8001/process", data=bufferarr)
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url="http://localhost:8001/process", data=bufferarr) as response:
+                        await response.text()
                 bufferarr.clear()
 
     except WebSocketDisconnect:
@@ -63,3 +65,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# fastapi dev website\frontend\controllers\main_controller.py
+
+
+# NOTE: some time magic going on here from front to backend, output vidoe is 1 second, but we can somehow compress 3 seconds of video into it... this is a good thing, more data inside

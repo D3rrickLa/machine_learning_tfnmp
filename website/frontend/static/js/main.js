@@ -2,32 +2,35 @@ let mediaRecoder;
 let ws; 
 let stream;
 let isStreaming = true;
-
-
+let lastFrameTime = 0
 function startStreaming() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("Media devices API is not supported");
         return;
     }
 
-    navigator.mediaDevices.getUserMedia({video: true})
+    navigator.mediaDevices.getUserMedia({video: {
+            width: { ideal: 640 }, 
+            height: { ideal: 480 },
+            frameRate: { ideal: 30 }
+        }
+    })
     .then(stream => {
         const video = document.getElementById("video")
         video.srcObject = stream; 
-        
-        
-        
+
         ws = new WebSocket("ws://localhost:8000/ws");
+        mediaRecoder = new MediaRecorder(stream);
         
         ws.onopen = () => {
             console.log("WebSocket connection opened."); 
-            mediaRecoder = new MediaRecorder(stream);
             
             mediaRecoder.ondataavailable = function(event) {
                 if (event.data.size > 0 && ws && ws.readyState == WebSocket.OPEN) {                    
-                    var canvas = document.getElementById("canvas")
+                    const canvas = document.createElement("canvas")
                     canvas.width = video.videoWidth || 640; // Set default width if videoWidth is not available
                     canvas.height = video.videoHeight || 480; // Set default height if videoHeight is not available
+                    
                     var ctx = canvas.getContext('2d', { willReadFrequently: true });
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
                     var pixelData = ctx.getImageData(0,0, canvas.width, canvas.height).data
@@ -35,7 +38,7 @@ function startStreaming() {
                     var length = pixelData.length
                     var buffer=  pixelData
 
-                    var rawData = new ArrayBuffer(length / 4 * 3); // why 4 * 3??
+                    var rawData = new ArrayBuffer(length / 4 * 3); // Removes the alpha component
                     var uint8View = new Uint8Array(rawData)
                 
                     // copy RGB buffer content to the new arraybuffer
@@ -46,10 +49,15 @@ function startStreaming() {
                     }    
                     
                     ws.send(uint8View);
+                    // const now = performance.now()
+                    // const deltaT = now - lastFrameTime
+                    // const frameRate = 1000 / deltaT 
+                    // console.log('Framerate:', frameRate)
+                    // lastFrameTime = now
                 }
             };
             
-            mediaRecoder.start(33.33)
+            mediaRecoder.start(33.33);
             
         };
 
@@ -58,9 +66,9 @@ function startStreaming() {
         };
 
         ws.onerror = (error) => {
-                console.error("WebSocket error:", error);
+            console.error("WebSocket error:", error);
         };
-        
+  
     })
     .catch(error => {
         console.error("error accessing media devices", error);

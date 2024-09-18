@@ -168,3 +168,4 @@ youtube
 logs/*
 *.gz
 *.pkl
+*.mp4
