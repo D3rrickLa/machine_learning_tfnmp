@@ -1,22 +1,16 @@
-import datetime
-import io
-import os
-import subprocess
 import time
 from typing import Counter
 import cv2
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles 
-from fastapi.templating import Jinja2Templates 
-from fastapi.responses import FileResponse, StreamingResponse, PlainTextResponse, Response 
+from fastapi import FastAPI, Request
+from fastapi.responses import Response 
 import joblib
 import numpy as np 
 import pandas as pd
 import uvicorn 
-from starlette import websockets
-import uuid
 import mediapipe as mp
 from keras import models
+
+from website.backend.services.decoder import Decoder
 
 app = FastAPI(debug=True)
 mp_drawing = mp.solutions.drawing_utils
@@ -27,6 +21,7 @@ holistics = mp_holistics.Holistic(static_image_mode=False, min_detection_confide
 model = models.load_model(r"model\CNN_LSTM\v3\models\model_11_v3_1724733396947051100.keras")
 class_labels = pd.read_csv(r"model\CNN_LSTM\v3\class_labels.csv")["gesture"].tolist()
 preprocessor = joblib.load(r"model\CNN_LSTM\v3\preprocessing_pipeline.pkl")
+decoder = Decoder()
 
 def draw_landmarks(image, model) -> None:
     mp_drawing.draw_landmarks(image, model.face_landmarks, mp_holistics.FACEMESH_CONTOURS,
@@ -55,7 +50,7 @@ def extract_keypoints(results):
     rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
     return np.concatenate([face, pose, lh, rh]).tolist()
 
-def predict(landmark_seq, frame_rate, frame_width, frame_height):
+def predict(landmark_seq, frame_rate=30, frame_width=640, frame_height=480):
     header = (
             [f'{coord}_{i}' for i in range(468) for coord in ('hx', 'hy', 'hz')]+
             [f'{coord}_{i}' for i in range(33) for coord in ('px', 'py', 'pz', "pose_visibility")]+
@@ -93,34 +88,52 @@ def predict(landmark_seq, frame_rate, frame_width, frame_height):
 
     return most_common_gesture
 
-
 @app.get("/")
 def index():
     return "the server is working properly"
 
 @app.post("/process")
 async def process(request: Request):
+    landmark_seq = []
+    try:  
+        frame_bytes = decoder.decode(await request.body())
+
+        for i in range(len(frame_bytes)):
+            frame = np.frombuffer(frame_bytes[i], np.uint8).reshape((480, 640, 3))
+            frame_c = frame.copy()
+            frame_rgb = cv2.cvtColor(frame_c, cv2.COLOR_BGR2RGB)
+            results = holistics.process(frame_rgb)
+            draw_landmarks(frame_rgb, results)
+            landmark_seq.append(extract_keypoints(results))
+
+            if len(landmark_seq) == 30:
+                pred_gesture = predict(landmark_seq)
+                print(pred_gesture)
+            
+        return Response(content=f"Video was decoded", status_code=200)
+
+
+    except Exception as e:
+        print(e)
+
+    finally:
+        cv2.destroyAllWindows()
+
+def main():
+    config = uvicorn.Config("back_controller:app", host="localhost", port=8001, reload="true")
+    uvicorn.Server(config=config).run()
+
+
+
+if __name__ == "__main__":
+    main()
+
+# fastapi dev website\backend\controllers\back_controller.py --port 8001
+
+
+"""
     try:
-        
-        ffmpeg_command = [
-            "ffmpeg",
-            "-hide_banner",
-            "-f", "rawvideo",                # Input format is raw video
-            "-pix_fmt", "bgr24",             # Pixel format
-            "-s", "640x480",                 # Resolution
-            "-r", "30",                      # Frame rate
-            "-i", "-",                       # Read input from stdin
-            "-an",
-            # "-c:v", "libx264",               # Video codec
-            # "-preset", "ultrafast",          # Encoding speed
-            # "-tune", "zerolatency",
-            # "-crf", "23",                    # Quality factor
-            "-b:v", "1M",                    # Video bitrate
-            "-vf", "scale=640:480",          # Scale filter
-            "-movflags", "frag_keyframe+empty_moov", # Fix typo
-            "-f", "rawvideo",                     # Output format
-            "-"
-        ]
+      
    
         # Run the ffmpeg command
         with subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
@@ -162,14 +175,4 @@ async def process(request: Request):
     finally:
         cv2.destroyAllWindows()
 
-
-def main():
-    config = uvicorn.Config("back_controller:app", host="localhost", port=8001, reload="true")
-    uvicorn.Server(config=config).run()
-
-
-
-if __name__ == "__main__":
-    main()
-
-# fastapi dev website\backend\controllers\back_controller.py --port 8001
+"""
