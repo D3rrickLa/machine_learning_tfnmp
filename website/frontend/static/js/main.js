@@ -2,7 +2,7 @@ let mediaRecoder;
 let ws; 
 let stream;
 let isStreaming = true;
-let lastFrameTime = 0
+
 function startStreaming() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("Media devices API is not supported");
@@ -19,12 +19,12 @@ function startStreaming() {
         const video = document.getElementById("video")
         video.srcObject = stream; 
 
-        ws = new WebSocket("ws://localhost:8000/ws");
+        ws = new WebSocket("ws://localhost:8001/ws");
         mediaRecoder = new MediaRecorder(stream);
         ws.onopen = () => {
             console.log("WebSocket connection opened."); 
             
-            mediaRecoder.ondataavailable = function(event) {
+            mediaRecoder.ondataavailable = async function(event) {
                 if (event.data.size > 0 && ws && ws.readyState == WebSocket.OPEN) {                    
                     const canvas = document.createElement("canvas")
                     canvas.width = video.videoWidth || 640; // Set default width if videoWidth is not available
@@ -45,15 +45,19 @@ function startStreaming() {
                         uint8View[j + 1] = pixelData[i + 1]; // Green
                         uint8View[j + 2] = pixelData[i + 2]; // Blue
                     }    
-              
-                    ws.send(uint8View);
-
+                    
+                    ws.send(uint8View)
+                    
                 }
             };
             
             mediaRecoder.start(33.33);
             
         };
+        
+        ws.onmessage = (event) => {
+            console.log("Message from server:", event.data)
+        }
 
         ws.onclose = () => {
             console.log("WebSocket connection closed.")
@@ -70,16 +74,18 @@ function startStreaming() {
 }
 
 function stopSignal() {
-    fetch("http://localhost:8000/stop_processing", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({command: "stop"})
-    })
-    .then(response => response.json())
-    .then(data => console.log(`Stop signal response: ${data.message}`))
-    .catch(error => console.error(`Error sending stop signal: ${error}`));
+    // fetch("http://localhost:8000/stop_processing", {
+    //     method: "POST",
+    //     headers: {
+    //         "Content-Type": "application/json"
+    //     },
+    //     body: JSON.stringify({command: "stop"})
+    // })
+    // .then(response => response.json())
+    // .then(data => console.log(`Stop signal response: ${data.message}`))
+    // .catch(error => console.error(`Error sending stop signal: ${error}`));
+
+    ws.close()
 }
 
 function stopStreaming() {
