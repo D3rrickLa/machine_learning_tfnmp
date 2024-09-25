@@ -38,6 +38,7 @@ async def websocket_point_2(websocket: WebSocket):
                 bufferarr.clear()
                 break
         
+        # maybe put this in asyc, we can keep sending data
             if len(bufferarr) >= 921600 * 30:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url="http://localhost:8001/process", data=bufferarr) as response:

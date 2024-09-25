@@ -21,7 +21,6 @@ function startStreaming() {
 
         ws = new WebSocket("ws://localhost:8000/ws");
         mediaRecoder = new MediaRecorder(stream);
-        
         ws.onopen = () => {
             console.log("WebSocket connection opened."); 
             
@@ -36,24 +35,19 @@ function startStreaming() {
                     var pixelData = ctx.getImageData(0,0, canvas.width, canvas.height).data
                     
                     var length = pixelData.length
-                    var buffer=  pixelData
 
                     var rawData = new ArrayBuffer(length / 4 * 3); // Removes the alpha component
                     var uint8View = new Uint8Array(rawData)
-                
+                  
                     // copy RGB buffer content to the new arraybuffer
                     for(var i = 0, j = 0; i< length; i+=4, j +=3) {
-                        uint8View[j] = buffer[i];         // Red
-                        uint8View[j + 1] = buffer[i + 1]; // Green
-                        uint8View[j + 2] = buffer[i + 2]; // Blue
+                        uint8View[j] = pixelData[i];         // Red
+                        uint8View[j + 1] = pixelData[i + 1]; // Green
+                        uint8View[j + 2] = pixelData[i + 2]; // Blue
                     }    
-                    
+              
                     ws.send(uint8View);
-                    // const now = performance.now()
-                    // const deltaT = now - lastFrameTime
-                    // const frameRate = 1000 / deltaT 
-                    // console.log('Framerate:', frameRate)
-                    // lastFrameTime = now
+
                 }
             };
             

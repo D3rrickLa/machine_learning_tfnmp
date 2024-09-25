@@ -12,12 +12,13 @@ class Decoder():
             "-r", "30",                      # Frame rate
             "-i", "-",                       # Read input from stdin
             "-an",
+            "-sn",
             "-b:v", "1M",                    # Video bitrate
-            "-vf", "scale=640:480",          # Scale filter
-            "-movflags", "frag_keyframe+empty_moov", # Fix typo
+            "-movflags", "frag_keyframe+empty_moov", 
             "-f", "rawvideo",                     # Output format
             "-"
         ]
+    
     
     def decode(self, encoded_data) -> list:
         ffmpeg_decoding_process = subprocess.Popen(
@@ -32,12 +33,16 @@ class Decoder():
 
         ffmpeg_decoding_process.stdin.write(encoded_data)
         ffmpeg_decoding_process.stdin.close()
-        buff_stdout = io.BufferedReader(ffmpeg_decoding_process.stdout, buffer_size=10**8)
+        buff_stdout = io.BufferedReader(ffmpeg_decoding_process.stdout, buffer_size=10**6)
 
         while True:
             frame = buff_stdout.read(frame_size) 
             if len(frame) < frame_size:
                 break
             frame_list.append(frame)
+
+        buff_stdout.close()
+        ffmpeg_decoding_process.stdout.close()
         ffmpeg_decoding_process.wait()
+
         return frame_list
