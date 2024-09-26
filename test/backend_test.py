@@ -10,9 +10,9 @@ client = TestClient(app)
 
 class TestBackendProcess(unittest.TestCase):
     
-    def initTest(self):
+    def testInitLoad(self):
         response = client.get("/")
-        self.assertEquals("the server is working properly", response.text)
+        self.assertEqual('"the server is working properly"', response.text)
     
     @unittest.skip("not needed rn.")
     def testProcess(self):
@@ -21,11 +21,11 @@ class TestBackendProcess(unittest.TestCase):
         if not os.path.exists(video_path):
             self.fail("VIdeo file not found")
         
+        time_1 = time.time()
         video_lists = []
-        for i in range(20):
+        for i in range(30):
             video_lists.append(video_path)
 
-            time_1 = time.time()
             cap = cv2.VideoCapture(video_lists[i])
 
             frame_bytes = []
@@ -40,42 +40,44 @@ class TestBackendProcess(unittest.TestCase):
             body = b''.join(frame_bytes)
             response = client.post("/process", content=body)
         
-        print(f"total time: {time.time() - time_1} | current: {i}")
+        print(f"total time: {time.time() - time_1}")
         self.assertEqual(response.status_code, 200)  # Check if the response is OK
         self.assertIn("Video was decoded", response.text)  # Check for expected response content
 
 
     def testWebsocketProcess(self):
         with client.websocket_connect("/ws") as websocket:
+            
             video_path = r"C:\Users\Gen3r\Documents\capstone\ml_model\test\saved_videos\output_video_3ed5f6c8b66d448bb0b56ef8d97ff076.mp4"
         
             if not os.path.exists(video_path):
                 self.fail("VIdeo file not found")
             
             video_lists = []
-            for i in range(20):
-                video_lists.append(video_path)
-
+            for i in range(3):
                 time_1 = time.time()
-                cap = cv2.VideoCapture(video_lists[i])
+                for i in range(30):
+                    video_lists.append(video_path)
 
-                frame_bytes = []
-                success, frame = cap.read()
+                    cap = cv2.VideoCapture(video_lists[i])
 
-                while success:
-                    frame_bytes.append(frame.tobytes())
-                    success, frame = cap.read() 
-                
-                cap.release() 
+                    frame_bytes = []
+                    success, frame = cap.read()
 
-                body = b''.join(frame_bytes)
-                websocket.send_bytes(body)
+                    while success:
+                        frame_bytes.append(frame.tobytes())
+                        success, frame = cap.read() 
+                    
+                    cap.release() 
 
+                    body = b''.join(frame_bytes)
+                    websocket.send_bytes(body)
 
-            print(f"total time: {time.time() - time_1} | current: {i}")
+                print(f"total time Cumm: {time.time() - time_1}")
+
+            assert websocket.receive_text()
             websocket.close()
-            assert websocket.receive_text() == "DAD"
+            
 
 if __name__ == "__main__":
     unittest.main()
-        

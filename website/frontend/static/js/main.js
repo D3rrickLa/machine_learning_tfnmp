@@ -1,7 +1,7 @@
 let mediaRecoder; 
 let ws; 
 let stream;
-let isStreaming = true;
+
 
 function startStreaming() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {

@@ -13,7 +13,6 @@ class Predictor():
         self.mp_drawing_styles = mp.solutions.drawing_styles
         self.mp_holistics = mp.solutions.holistic
         self.holistics = self.mp_holistics.Holistic(static_image_mode=False, min_detection_confidence=0.65, min_tracking_confidence=0.8)
-
         self.header = (
                 [f'{coord}_{i}' for i in range(468) for coord in ('hx', 'hy', 'hz')]+
                 [f'{coord}_{i}' for i in range(33) for coord in ('px', 'py', 'pz', "pose_visibility")]+
@@ -43,7 +42,7 @@ class Predictor():
                                     self.mp_drawing.DrawingSpec(color=(181, 135, 230), thickness=2, circle_radius=2)
                                 )
 
-    def extract_keypoints(self, results):
+    def extract_keypoints(self, results) -> list:
 
         # Process pose landmarks (if available)
         pose = np.array([[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33*4)
@@ -52,12 +51,9 @@ class Predictor():
         rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
         return np.concatenate([face, pose, lh, rh]).tolist()
 
-    def predict(self, landmark_seq, frame_rate=30, frame_width=640, frame_height=480):
+    def predict(self, landmark_seq, frame_rate=30, frame_width=640, frame_height=480) -> str:
         
-        data = [
-            frame_data + [frame_rate, frame_width, frame_height, i, time.time_ns()]  for i, frame_data in enumerate(landmark_seq)
-        ]
-
+        data = [frame_data + [frame_rate, frame_width, frame_height, i, time.time_ns()]  for i, frame_data in enumerate(landmark_seq)]
         df = pd.DataFrame(data, columns=self.header)
         
         X_new_pre = self.preprocessor.transform(df[self.landmark_columns + self.numerical_columns + self.categorical_columns])
@@ -67,7 +63,6 @@ class Predictor():
         pred = self.model.predict(X_new, verbose=0)
 
         pred_labels = [self.class_labels[np.argmax(p)] for p in pred]
-        
         gesture_counts = Counter(pred_labels)
         most_common_gesture = gesture_counts.most_common(1)[0][0]
 
