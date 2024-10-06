@@ -16,6 +16,8 @@ from website.backend.services.decoder import Decoder
 from website.backend.services.predictor import Predictor
 from concurrent.futures import ThreadPoolExecutor
 
+
+FLAG = False
 app = FastAPI(debug=True)
 exe = ThreadPoolExecutor()
 model = models.load_model(r"model\CNN_LSTM\v3\models\model_11_v3_1724733396947051100.keras")
@@ -61,18 +63,24 @@ async def process(request: Request):
         cv2.destroyAllWindows()
 
 
+
+@app.post("/stop_signal")
+async def process(reqiest: Request):
+    return 0
+
 # NOTE there is still pausing on the JS side when running asyncio
 @app.websocket("/ws")
 async def weksocket_process(websocket: WebSocket):
     await websocket.accept()
     videobuffer = bytearray()
-    
+    decoder = Decoder() 
+    predictor = Predictor(preprocessor, model, class_labels)
     try:
         while True:
             data = await websocket.receive_bytes()
             videobuffer.extend(data)
             if (len(videobuffer) == 921600 * 30):
-                asyncio.create_task(process_async(videobuffer.copy(), websocket))  # Copy current buffer to avoid erase conditions
+                asyncio.create_task(process_async(videobuffer.copy(), websocket, decoder, predictor))  # Copy current buffer to avoid erase conditions
                 videobuffer.clear()
                 continue
             else:
@@ -86,15 +94,13 @@ async def weksocket_process(websocket: WebSocket):
         gc.collect()     
         pass
 
-async def process_async(buffer, websocket: WebSocket):
+
+async def process_async(buffer, websocket: WebSocket, decoder, predictor):
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(exe, process_video, buffer)
+    result = await loop.run_in_executor(exe, process_video, buffer, decoder, predictor)
     await websocket.send_text(f"Result: {result}")
 
-def process_video(frames: bytearray):
-    decoder = Decoder() 
-    predictor = Predictor(preprocessor, model, class_labels)
-
+def process_video(frames: bytearray, decoder: Decoder, predictor: Predictor):
     decoded_frame_list = decoder.decode(frames) 
     landmark_seq = [predictor.extract_keypoints(predictor.holistics.process(cv2.cvtColor(np.frombuffer(i, np.uint8).reshape((480, 640, 3)),cv2.COLOR_BGR2RGB))) for i in decoded_frame_list]
 
